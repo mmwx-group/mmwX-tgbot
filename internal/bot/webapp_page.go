@@ -132,7 +132,7 @@ window.__tab=__tab;
 
 function chart(hist){
  hist=(hist||[]).filter(function(d){return d&&d.date;});
- if(!hist.length)return '<div class="card"><div class="title">每日流量</div><div class="muted">暂无数据</div></div>';
+ if(!hist.length)return '';
  var max=0;hist.forEach(function(d){if(d.used_gb>max)max=d.used_gb;});if(max<=0)max=1;
  var bw=Math.max(3,Math.floor((300-hist.length*2)/hist.length)),H=80,W=hist.length*(bw+2);
  var bars="";hist.forEach(function(d,i){var hh=Math.max(1,d.used_gb/max*H);bars+='<rect x="'+(i*(bw+2))+'" y="'+(H-hh)+'" width="'+bw+'" height="'+hh+'" rx="1" fill="var(--brand)"></rect>';});

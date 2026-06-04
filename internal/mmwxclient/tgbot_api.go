@@ -173,6 +173,27 @@ func (c *Client) UserNodes(ctx context.Context, username string) (*UserNodesResp
 	return &out, nil
 }
 
+// AdminSubview 管理员账号的「系统订阅列表第一个订阅」+ 其节点(名/协议/状态)。
+type AdminSubview struct {
+	Subscription *Subscription `json:"subscription"`
+	Nodes        []struct {
+		NodeID   int64  `json:"node_id"`
+		Name     string `json:"name"`
+		Protocol string `json:"protocol"`
+		Status   string `json:"status"`
+	} `json:"nodes"`
+}
+
+// GetAdminSubview 取管理员的订阅视图(无套餐管理员在 Mini App 用第一个订阅)。
+func (c *Client) GetAdminSubview(ctx context.Context, username string) (*AdminSubview, error) {
+	var out AdminSubview
+	q := url.Values{"username": []string{username}}
+	if err := c.get(ctx, "/api/admin/tgbot/admin-subview", q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // NodeTrafficItem 用户在单个节点的已用流量(本周期)。
 type NodeTrafficItem struct {
 	NodeID   int64  `json:"node_id"`

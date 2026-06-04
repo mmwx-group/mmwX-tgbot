@@ -241,6 +241,35 @@ func (s *Service) webAppMe(w http.ResponseWriter, r *http.Request) {
 	}
 	resp["subscriptions"] = subs
 
+	// 管理员账号(无套餐、无个人订阅)→ 用系统订阅列表第一个订阅 + 其节点。
+	// 订阅链接取第一个订阅;流量页/状态页用该订阅的全部节点(用量按节点名从已用流量合并,无则 0)。
+	if s.cfg.IsAdmin(tgID) && len(subs) == 0 {
+		if sv, err := s.client.GetAdminSubview(ctx, username); err == nil && sv != nil {
+			if sv.Subscription != nil {
+				resp["subscriptions"] = []map[string]any{{
+					"name": sv.Subscription.Name, "default": false,
+					"url": base + "/" + sv.Subscription.CombinedCode,
+				}}
+			}
+			usedByName := map[string]int64{}
+			for _, n := range nodes {
+				if nm, ok := n["name"].(string); ok {
+					if u, ok2 := n["used"].(int64); ok2 {
+						usedByName[nm] = u
+					}
+				}
+			}
+			nn := []map[string]any{}
+			ns := []map[string]any{}
+			for _, sn := range sv.Nodes {
+				nn = append(nn, map[string]any{"name": sn.Name, "used": usedByName[sn.Name]})
+				ns = append(ns, map[string]any{"name": sn.Name, "protocol": sn.Protocol, "status": sn.Status})
+			}
+			resp["nodes"] = nn
+			resp["node_status"] = ns
+		}
+	}
+
 	writeJSONResp(w, http.StatusOK, resp)
 }
 
