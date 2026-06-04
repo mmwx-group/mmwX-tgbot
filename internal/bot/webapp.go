@@ -121,7 +121,7 @@ func (s *Service) webAppMe(w http.ResponseWriter, r *http.Request) {
 	if initData == "" {
 		initData = r.URL.Query().Get("initData")
 	}
-	tgID, _, err := validateInitData(initData, s.cfg.TGBotToken)
+	tgID, handle, err := validateInitData(initData, s.cfg.TGBotToken)
 	if err != nil {
 		writeJSONResp(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
 		return
@@ -134,8 +134,18 @@ func (s *Service) webAppMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !info.Bound {
-		writeJSONResp(w, http.StatusOK, map[string]any{"bound": false})
-		return
+		// 管理员未绑定 → 自动绑到主控管理员账号(妙妙屋X 默认单管理员),再重查。
+		if s.cfg.IsAdmin(tgID) {
+			if _, berr := s.client.BindAdmin(ctx, tgID, handle); berr == nil {
+				if re, rerr := s.client.UserByTG(ctx, tgID); rerr == nil {
+					info = re
+				}
+			}
+		}
+		if !info.Bound {
+			writeJSONResp(w, http.StatusOK, map[string]any{"bound": false})
+			return
+		}
 	}
 	username := info.Username
 

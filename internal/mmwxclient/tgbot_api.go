@@ -51,6 +51,19 @@ func (c *Client) Redeem(ctx context.Context, code string, tgID int64) (*RedeemRe
 	return &out, nil
 }
 
+// BindAdmin 把 TG 自动绑到主控管理员账号(Mini App:管理员未绑定时自动绑)。返回管理员用户名。
+func (c *Client) BindAdmin(ctx context.Context, tgID int64, handle string) (string, error) {
+	var out struct {
+		Success  bool   `json:"success"`
+		Username string `json:"username"`
+	}
+	if err := c.post(ctx, "/api/admin/tgbot/bind-admin",
+		map[string]any{"telegram_id": tgID, "telegram_handle": handle}, &out); err != nil {
+		return "", err
+	}
+	return out.Username, nil
+}
+
 func (c *Client) Unbind(ctx context.Context, tgID int64) (string, error) {
 	var out struct {
 		Success  bool   `json:"success"`
