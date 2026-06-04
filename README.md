@@ -252,6 +252,9 @@ internal/
 
 <details>
 <summary>更新日志</summary>
+### v0.0.1 (2026-06-04)
+- 🌈beta
+
 ### v0.1.0 (2026-06-04)
 - Create LICENSE
 - 🌈beta
