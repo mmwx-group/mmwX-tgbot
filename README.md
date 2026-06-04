@@ -258,6 +258,10 @@ internal/
 
 <details>
 <summary>更新日志</summary>
+### v0.0.4 (2026-06-04)
+- 🌈beta0.0.3
+- 🌈beta0.0.4
+
 ### v0.0.3 (2026-06-04)
 - 🌈beta0.0.3
 
