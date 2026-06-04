@@ -15,7 +15,9 @@ services:
       # 容器内监听所有网卡(由上面的 ports 限定只暴露到宿主机回环)
       MMWX_TGBOT_WEBAPP_LISTEN: ":23088"
       # Mini App 公网地址(配了才显示菜单按钮;不用可留空)
-      MMWX_TGBOT_WEBAPP_URL: "https://mmw.domain.com"
+      MMWX_TGBOT_WEBAPP_URL: "https://mmw-tgapp.domain.com"
+      # 调试用:允许从 ?initData= 读取做本地浏览器预览。生产务必保持 false。
+      MMWX_TGBOT_WEBAPP_DEV_PREVIEW: "false"
     # 若不用 env,挂载 config.yaml:
     # volumes:
     #   - ./config.yaml:/app/config/config.yaml:ro
