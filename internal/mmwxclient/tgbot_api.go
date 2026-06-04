@@ -1,0 +1,313 @@
+package mmwxclient
+
+import (
+	"context"
+	"strconv"
+	"net/url"
+)
+
+// BindRequest 给 /api/admin/tgbot/bind 的入参。kind=new 时 Username 必填,kind=bind 时不要传 username。
+type BindRequest struct {
+	Code           string `json:"code"`
+	TelegramID     int64  `json:"telegram_id"`
+	TelegramHandle string `json:"telegram_handle,omitempty"`
+	Username       string `json:"username,omitempty"`
+	Email          string `json:"email,omitempty"`
+	Password       string `json:"password,omitempty"`
+}
+
+// BindResponse 主控 /bind 返回。kind=new 时 InitialPassword 非空,Package 非 nil。
+type BindResponse struct {
+	Success         bool                   `json:"success"`
+	Username        string                 `json:"username"`
+	Kind            string                 `json:"kind"`
+	InitialPassword string                 `json:"initial_password,omitempty"`
+	Package         map[string]any         `json:"package,omitempty"`
+}
+
+func (c *Client) Bind(ctx context.Context, req BindRequest) (*BindResponse, error) {
+	var out BindResponse
+	if err := c.post(ctx, "/api/admin/tgbot/bind", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RedeemResult 已绑用户续期结果。
+type RedeemResult struct {
+	Success     bool   `json:"success"`
+	Username    string `json:"username"`
+	PackageName string `json:"package_name"`
+	EndDate     string `json:"end_date"`
+}
+
+// Redeem 已绑用户用兑换码续期(只延长到期时间)。
+func (c *Client) Redeem(ctx context.Context, code string, tgID int64) (*RedeemResult, error) {
+	var out RedeemResult
+	if err := c.post(ctx, "/api/admin/tgbot/redeem",
+		map[string]any{"code": code, "telegram_id": tgID}, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) Unbind(ctx context.Context, tgID int64) (string, error) {
+	var out struct {
+		Success  bool   `json:"success"`
+		Username string `json:"username"`
+	}
+	if err := c.post(ctx, "/api/admin/tgbot/unbind", map[string]any{"telegram_id": tgID}, &out); err != nil {
+		return "", err
+	}
+	return out.Username, nil
+}
+
+type UserByTG struct {
+	Success       bool   `json:"success"`
+	Bound         bool   `json:"bound"`
+	Username      string `json:"username,omitempty"`
+	Role          string `json:"role,omitempty"`
+	IsActive      bool   `json:"is_active,omitempty"`
+	NotifyEnabled bool   `json:"notify_enabled,omitempty"`
+}
+
+func (c *Client) UserByTG(ctx context.Context, tgID int64) (*UserByTG, error) {
+	var out UserByTG
+	q := url.Values{"tg_id": []string{strconv.FormatInt(tgID, 10)}}
+	if err := c.get(ctx, "/api/admin/tgbot/user-by-tg", q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UserSummary 主控 /user-summary 返回(松散字段,bot 渲染时灵活取)。
+type UserSummary struct {
+	Success         bool                   `json:"success"`
+	Username        string                 `json:"username"`
+	Role            string                 `json:"role"`
+	IsActive        bool                   `json:"is_active"`
+	Email           string                 `json:"email"`
+	Package         map[string]any         `json:"package,omitempty"`
+	PackageEndDate  string                 `json:"package_end_date,omitempty"`
+	Traffic         TrafficCounters        `json:"traffic"`
+}
+
+type TrafficCounters struct {
+	CycleUplink   int64 `json:"cycle_uplink"`
+	CycleDownlink int64 `json:"cycle_downlink"`
+	TotalUplink   int64 `json:"total_uplink"`
+	TotalDownlink int64 `json:"total_downlink"`
+}
+
+func (c *Client) UserSummary(ctx context.Context, username string) (*UserSummary, error) {
+	var out UserSummary
+	q := url.Values{"username": []string{username}}
+	if err := c.get(ctx, "/api/admin/tgbot/user-summary", q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+type Subscription struct {
+	ID              int64  `json:"id"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	FileShortCode   string `json:"file_short_code"`
+	CustomShortCode string `json:"custom_short_code"`
+	CombinedCode    string `json:"combined_code"`
+}
+
+type UserSubscriptionsResp struct {
+	Success       bool           `json:"success"`
+	UserShortCode string         `json:"user_short_code"`
+	Subscriptions []Subscription `json:"subscriptions"`
+	// DefaultSubscription 套餐默认订阅(用户有套餐时即有,无需分配 subscribe_file)。
+	DefaultSubscription *Subscription `json:"default_subscription,omitempty"`
+}
+
+func (c *Client) UserSubscriptions(ctx context.Context, username string) (*UserSubscriptionsResp, error) {
+	var out UserSubscriptionsResp
+	q := url.Values{"username": []string{username}}
+	if err := c.get(ctx, "/api/admin/tgbot/user-subscriptions", q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+type NodeInfo struct {
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	Protocol     string `json:"protocol"`
+	ServerName   string `json:"server_name"`
+	ServerStatus string `json:"server_status"`
+	ServerOnline bool   `json:"server_online"`
+	InboundTag   string `json:"inbound_tag"`
+	NodeType     string `json:"node_type"`
+	Enabled      bool   `json:"enabled"`
+}
+
+type UserNodesResp struct {
+	Success bool       `json:"success"`
+	Nodes   []NodeInfo `json:"nodes"`
+}
+
+func (c *Client) UserNodes(ctx context.Context, username string) (*UserNodesResp, error) {
+	var out UserNodesResp
+	q := url.Values{"username": []string{username}}
+	if err := c.get(ctx, "/api/admin/tgbot/user-nodes", q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// NodeTrafficItem 用户在单个节点的已用流量(本周期)。
+type NodeTrafficItem struct {
+	NodeID   int64  `json:"node_id"`
+	NodeName string `json:"node_name"`
+	Uplink   int64  `json:"uplink"`
+	Downlink int64  `json:"downlink"`
+}
+
+// UserNodeTraffic 取用户各节点已用流量。注意端点在 /api/admin/traffic/user-nodes
+// (非 tgbot 子域),鉴权同为 RequireAdmin,故 bot 的 admin token 可用。
+func (c *Client) UserNodeTraffic(ctx context.Context, username string) ([]NodeTrafficItem, error) {
+	var out struct {
+		Items []NodeTrafficItem `json:"items"`
+	}
+	q := url.Values{"username": []string{username}}
+	if err := c.get(ctx, "/api/admin/traffic/user-nodes", q, &out); err != nil {
+		return nil, err
+	}
+	return out.Items, nil
+}
+
+// DailyUsage 套餐周期内某一天的用量(GB)。
+type DailyUsage struct {
+	Date   string  `json:"date"`
+	UsedGB float64 `json:"used_gb"`
+}
+
+// UserDailyTraffic 取用户套餐周期内每日用量(用于首页流量曲线)。
+func (c *Client) UserDailyTraffic(ctx context.Context, username string) ([]DailyUsage, error) {
+	var out struct {
+		History []DailyUsage `json:"history"`
+	}
+	q := url.Values{"username": []string{username}}
+	if err := c.get(ctx, "/api/admin/tgbot/user-daily-traffic", q, &out); err != nil {
+		return nil, err
+	}
+	return out.History, nil
+}
+
+// ============ 邀请码(admin 命令 /admin_invite 用) ============
+
+type Invite struct {
+	Code         string `json:"code"`
+	Kind         string `json:"kind"`
+	BindUsername string `json:"bind_username,omitempty"`
+	CreatedBy    string `json:"created_by"`
+	PackageID    *int64 `json:"package_id,omitempty"`
+	MaxUses      int    `json:"max_uses"`
+	UsedCount    int    `json:"used_count"`
+	ExpiresAt    string `json:"expires_at,omitempty"`
+	Revoked      bool   `json:"revoked"`
+	Remark       string `json:"remark,omitempty"`
+	Usable       bool   `json:"usable"`
+}
+
+func (c *Client) ListInvites(ctx context.Context, limit int) ([]Invite, error) {
+	var out struct {
+		Success bool     `json:"success"`
+		Items   []Invite `json:"items"`
+	}
+	q := url.Values{}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	if err := c.get(ctx, "/api/admin/tgbot/invites", q, &out); err != nil {
+		return nil, err
+	}
+	return out.Items, nil
+}
+
+func (c *Client) RevokeInvite(ctx context.Context, code string) error {
+	return c.post(ctx, "/api/admin/tgbot/invites/revoke", map[string]any{"code": code}, nil)
+}
+
+// CreateInviteRequest 给 POST /api/admin/tgbot/invites。
+// kind=new 时 PackageID/DurationMonths 有意义;kind=bind 时 BindUsername 必填。
+// DurationMonths>0:注册账号有效期 = now + N 月,且 N>1 时主控自动开按月续期。
+type CreateInviteRequest struct {
+	Kind           string `json:"kind"`
+	BindUsername   string `json:"bind_username,omitempty"`
+	PackageID      *int64 `json:"package_id,omitempty"`
+	MaxUses        int    `json:"max_uses,omitempty"`
+	DurationMonths int    `json:"duration_months,omitempty"`
+	Remark         string `json:"remark,omitempty"`
+}
+
+// CreateInvite 创建邀请码,返回生成的 code。
+func (c *Client) CreateInvite(ctx context.Context, req CreateInviteRequest) (string, error) {
+	var out struct {
+		Success bool   `json:"success"`
+		Code    string `json:"code"`
+	}
+	if err := c.post(ctx, "/api/admin/tgbot/invites", req, &out); err != nil {
+		return "", err
+	}
+	return out.Code, nil
+}
+
+// ============ 套餐(创建邀请码时按钮选套餐用)============
+
+// Package 主控 /api/admin/packages 返回的套餐(只取 bot 渲染需要的字段)。
+type Package struct {
+	ID             int64   `json:"id"`
+	Name           string  `json:"name"`
+	TrafficLimitGB float64 `json:"traffic_limit_gb"`
+	CycleDays      int     `json:"cycle_days"`
+}
+
+// ListPackages 列出所有套餐模板。注意端点在 /api/admin/packages(非 tgbot 子域),
+// 但鉴权中间件与 tgbot 同为 RequireAdmin,故同一 admin token 可用。
+func (c *Client) ListPackages(ctx context.Context) ([]Package, error) {
+	var out struct {
+		Packages []Package `json:"packages"`
+	}
+	if err := c.get(ctx, "/api/admin/packages", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Packages, nil
+}
+
+// ============ 用户自助通知 ============
+
+// SetNotify 开关某 tg_id 的每日通知。
+func (c *Client) SetNotify(ctx context.Context, tgID int64, enabled bool) error {
+	return c.post(ctx, "/api/admin/tgbot/notify",
+		map[string]any{"telegram_id": tgID, "enabled": enabled}, nil)
+}
+
+// NotifyUser 每日推送名单的一行(流量 + 到期)。
+type NotifyUser struct {
+	Username       string  `json:"username"`
+	TelegramID     int64   `json:"telegram_id"`
+	PackageName    string  `json:"package_name"`
+	TrafficLimitGB float64 `json:"traffic_limit_gb"`
+	CycleUplink    int64   `json:"cycle_uplink"`
+	CycleDownlink  int64   `json:"cycle_downlink"`
+	TotalUplink    int64   `json:"total_uplink"`
+	TotalDownlink  int64   `json:"total_downlink"`
+	PackageEndDate string  `json:"package_end_date"`
+}
+
+// NotifyDigest 拉取所有已开通知用户(供 bot 每日推送)。
+func (c *Client) NotifyDigest(ctx context.Context) ([]NotifyUser, error) {
+	var out struct {
+		Users []NotifyUser `json:"users"`
+	}
+	if err := c.get(ctx, "/api/admin/tgbot/notify-digest", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Users, nil
+}

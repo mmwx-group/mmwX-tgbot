@@ -1,0 +1,16 @@
+services:
+  mmwx-tgbot:
+    image: ghcr.io/iluobei/mmwx-tgbot:latest
+    container_name: mmwx-tgbot
+    restart: unless-stopped
+    environment:
+      # 也可改为挂载 config.yaml 到 /app/config/config.yaml
+      MMWX_TGBOT_MMWX_URL: "https://mmw.2ha.me"
+      MMWX_TGBOT_MMWX_API_TOKEN: "${MMWX_TGBOT_MMWX_API_TOKEN}"
+      MMWX_TGBOT_TG_BOT_TOKEN: "${MMWX_TGBOT_TG_BOT_TOKEN}"
+      MMWX_TGBOT_PUBLIC_URL: "https://mmw.2ha.me"
+      MMWX_TGBOT_ADMIN_TG_IDS: "${MMWX_TGBOT_ADMIN_TG_IDS}"
+    # 若不用 env,挂载 config.yaml:
+    # volumes:
+    #   - ./config.yaml:/app/config/config.yaml:ro
+    command: ["/app/mmwx-tgbot"]
