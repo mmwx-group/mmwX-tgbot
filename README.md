@@ -20,7 +20,7 @@
 ```
                        ┌──────────────────────────────┐
    Telegram 用户 ──────▶│         mmwX-tgbot           │
-   (命令 / Mini App)    │  long-poll  +  HTTP(:8088)   │
+   (命令 / Mini App)    │  long-poll  +  HTTP(:23088)  │
                        └───────────────┬──────────────┘
                                        │ Bearer <MMWX_API_TOKEN>
                                        ▼
