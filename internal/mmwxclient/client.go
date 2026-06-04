@@ -21,7 +21,7 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// New 构造 client。base 形如 "https://mmw.2ha.me",token 是 admin api token。
+// New 构造 client。base 形如 "https://mmw.domain.com",token 是 admin api token。
 func New(base, token string, timeoutSeconds int) *Client {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 8

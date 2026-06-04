@@ -15,7 +15,7 @@
 
 ## 🧭 这是什么
 
-独立部署的 Telegram bot,**自身无数据库**。所有数据(账号、套餐、流量、订阅、兑换码)都在 [妙妙屋X](https://mmw.2ha.me) 主控,bot 通过 `Authorization: Bearer <admin token>` 调主控的 `/api/admin/tgbot/*` 域,只做 Telegram 这一层交互前端。
+独立部署的 Telegram bot,**自身无数据库**。所有数据(账号、套餐、流量、订阅、兑换码)都在 [妙妙屋X](https://mmw.domain.com) 主控,bot 通过 `Authorization: Bearer <admin token>` 调主控的 `/api/admin/tgbot/*` 域,只做 Telegram 这一层交互前端。
 
 ```
                        ┌──────────────────────────────┐
@@ -25,8 +25,8 @@
                                        │ Bearer <MMWX_API_TOKEN>
                                        ▼
                        ┌──────────────────────────────┐
-                       │   妙妙屋X 主控  mmw.2ha.me     │
-                       │   /api/admin/tgbot/*          │
+                       │   妙妙屋X 主控  mmw.domain.com│
+                       │   /api/admin/tgbot/*         │
                        └──────────────────────────────┘
 ```
 
@@ -102,12 +102,12 @@ opt-in,默认关闭,开关存主控。
 复制 `config.example.yaml` → `config.yaml`:
 
 ```yaml
-mmwx_url: https://mmw.2ha.me          # 主控地址(订阅链接基址固定为 mmwx_url + /x)
+mmwx_url: https://mmw.domain.com         # 主控地址(订阅链接基址固定为 mmwx_url + /x)
 mmwx_api_token: <从主控系统设置取>      # admin 级 API token
 tg_bot_token: <@BotFather 给的>
 admin_tg_ids: [123456789]                  # 谁能用 /admin_* 与 Mini App 邀请码页
 webapp_listen: "127.0.0.1:23088"           # Mini App 本地监听(默认只听回环)
-webapp_url: "https://mmw.2ha.me/app"       # Mini App 公网地址;留空则不设菜单按钮
+webapp_url: "https://mmw-tgapp.domain.com/app"       # Mini App 公网地址;留空则不设菜单按钮
 webapp_dev_preview: false                  # 调试用,生产保持 false(见下)
 ```
 
@@ -173,12 +173,12 @@ docker compose up -d
 ```bash
 docker run -d --name mmwx-tgbot --restart unless-stopped \
   -p 127.0.0.1:23088:23088 \
-  -e MMWX_TGBOT_MMWX_URL=https://mmw.2ha.me \
+  -e MMWX_TGBOT_MMWX_URL=https://mmw.domain.com \
   -e MMWX_TGBOT_MMWX_API_TOKEN=... \
   -e MMWX_TGBOT_TG_BOT_TOKEN=... \
   -e MMWX_TGBOT_ADMIN_TG_IDS=123 \
   -e MMWX_TGBOT_WEBAPP_LISTEN=:23088 \
-  -e MMWX_TGBOT_WEBAPP_URL=https://mmw.2ha.me/app \
+  -e MMWX_TGBOT_WEBAPP_URL=https://mmw-tgbot.domain.com/app \
   ghcr.io/mmwx-group/mmwx-tgbot:latest
 ```
 
@@ -190,7 +190,7 @@ docker run -d --name mmwx-tgbot --restart unless-stopped \
 
 ### 🌐 Mini App 的 nginx 反代
 
-bot 的 `127.0.0.1:23088` 只听本地,在主控域名(如 `mmw.2ha.me`)的 nginx server 块里、`location /` **之前**加(`X-Real-IP` 用于限流准确性):
+bot 的 `127.0.0.1:23088` 只听本地,在主控域名(如 `mmw.domain.com`)的 nginx server 块里、`location /` **之前**加(`X-Real-IP` 用于限流准确性):
 
 ```nginx
 location = /app {

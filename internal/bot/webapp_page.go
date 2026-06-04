@@ -85,7 +85,7 @@ nav svg{width:22px;height:22px}
 </head>
 <body>
 <header>
-  <img id="logo" src="https://mmw.2ha.me/images/mmwx_logo.png" alt="妙妙屋X">
+  <img id="logo" src="https://miaomiaowu.net/images/logo.webp" alt="妙妙屋X">
   <span class="brand">妙妙屋<span class="ax"><span class="ax-t">X</span><span class="ax-g" aria-hidden="true">X</span><span class="ax-p" aria-hidden="true"></span></span></span>
   <span class="sub">我的面板</span>
 </header>
@@ -120,7 +120,7 @@ function hb(n){n=Number(n)||0;if(n<1024)return n+" B";var u=["KB","MB","GB","TB"
 function esc(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
 function setScheme(){var dark=tg?(tg.colorScheme==="dark"):window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches;
  document.documentElement.classList.toggle("dark",!!dark);
- document.getElementById("logo").src="https://mmw.2ha.me/images/"+(dark?"mmwx_light.webp":"mmwx_logo.png");}
+ document.getElementById("logo").src="https://miaomiaowu.net/images/logo.webp");}
 function copy(u){if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
  navigator.clipboard&&navigator.clipboard.writeText(u);
  if(tg&&tg.showPopup)tg.showPopup({message:"订阅链接已复制"});else alert("已复制");}

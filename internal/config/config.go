@@ -6,7 +6,7 @@
 //
 // 示例:
 //
-//	mmwx_url: https://mmw.2ha.me
+//	mmwx_url: https://mmw.domain.com
 //	mmwx_api_token: bfd6ac59-...
 //	tg_bot_token: 1234:xxx
 //	admin_tg_ids: [12345, 67890]
@@ -34,7 +34,7 @@ type Config struct {
 	HTTPTimeoutSeconds int `yaml:"http_timeout_seconds"`
 	// Mini App HTTP 服务监听地址,默认 127.0.0.1:23088(只听回环,由前置 nginx 反代到公网 HTTPS)
 	WebAppListen string `yaml:"webapp_listen"`
-	// Mini App 公网 HTTPS 地址(nginx 暴露的,如 https://mmw.2ha.me/app)。
+	// Mini App 公网 HTTPS 地址(nginx 暴露的,如 https://mmw-tgapp.domain.com/app)。
 	// 非空时 bot 启动会把它设为 TG 菜单按钮;空则不设按钮(仅本地起服务)。
 	WebAppURL string `yaml:"webapp_url"`
 	// 调试:允许从 ?initData= 读取(本地浏览器预览用)。生产务必关闭(默认 false),

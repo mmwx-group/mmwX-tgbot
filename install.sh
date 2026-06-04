@@ -56,8 +56,8 @@ ask(){ # ask VAR "提示" "默认值" "必填(1/0)"
 echo
 echo "${B}========== mmwX-tgbot 一键安装 ==========${R}"
 echo
-info "请输入配置(方括号内为默认值,回车采用):"
-ask MMWX_URL   "主控地址 mmwx_url"                         "https://mmw.2ha.me" 1
+info "请输入配置(方括号内为示例,回车采用):"
+ask MMWX_URL   "主控地址 mmwx_url"                         "https://mmw.domain.com" 1
 MMWX_URL=${MMWX_URL%/}
 ask API_TOKEN  "主控 admin API token (mmwx_api_token)"     ""                   1
 ask BOT_TOKEN  "Telegram bot token (tg_bot_token)"         ""                   1
