@@ -6,7 +6,7 @@
 set -euo pipefail
 
 BUILD_DIR="build"
-PKG="github.com/iluobei/mmwX-tgbot/cmd/mmwx-tgbot"
+PKG="github.com/mmwx-group/mmwX-tgbot/cmd/mmwx-tgbot"
 VERSION="${VERSION:-dev}"
 LDFLAGS="-s -w -X 'main.version=${VERSION}'"
 

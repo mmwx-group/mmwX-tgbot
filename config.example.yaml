@@ -21,7 +21,9 @@ admin_tg_ids:
 # 调主控 HTTP 超时秒数(默认 8)
 http_timeout_seconds: 8
 
-# Mini App HTTP 服务本地监听地址(默认 :8088),由前置 nginx 反代到公网 HTTPS
-webapp_listen: ":8088"
+# Mini App HTTP 服务监听地址(默认 127.0.0.1:23088,只听回环),由前置 nginx 反代到公网 HTTPS
+webapp_listen: "127.0.0.1:23088"
 # Mini App 公网 HTTPS 地址(nginx 暴露的)。非空时设为 TG 菜单按钮;留空则不显示入口。
 webapp_url: ""
+# 调试用:允许从 ?initData= 读取做本地浏览器预览。生产务必保持 false。
+webapp_dev_preview: false

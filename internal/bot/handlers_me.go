@@ -6,7 +6,7 @@ package bot
 // 编译期注意:把 formatUserSummary 重写在这里,接受具体类型。
 
 import (
-	"github.com/iluobei/mmwX-tgbot/internal/mmwxclient"
+	"github.com/mmwx-group/mmwX-tgbot/internal/mmwxclient"
 )
 
 // formatSummaryFromClient 把 mmwxclient.UserSummary 渲染成可读卡片。

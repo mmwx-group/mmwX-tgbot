@@ -1,4 +1,4 @@
-module github.com/iluobei/mmwX-tgbot
+module github.com/mmwx-group/mmwX-tgbot
 
 go 1.24
 

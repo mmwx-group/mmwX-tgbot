@@ -10,7 +10,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/iluobei/mmwX-tgbot/internal/mmwxclient"
+	"github.com/mmwx-group/mmwX-tgbot/internal/mmwxclient"
 )
 
 // 用户自助通知:/notify on|off|status。开启后 bot 每天 notifyHour 点推流量,

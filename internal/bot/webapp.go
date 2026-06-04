@@ -8,14 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/iluobei/mmwX-tgbot/internal/mmwxclient"
+	"github.com/mmwx-group/mmwX-tgbot/internal/mmwxclient"
 )
 
 // Telegram Mini App 后端。bot 起一个 HTTP 服务(默认 :8088,前置 nginx 反代到公网 HTTPS):
@@ -30,12 +32,13 @@ func (s *Service) startWebApp(ctx context.Context) {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/app", s.webAppPage)
-	mux.HandleFunc("/api/tg-webapp/me", s.webAppMe)
-	mux.HandleFunc("/api/tg-webapp/register", s.webAppRegister)
-	mux.HandleFunc("/api/tg-webapp/redeem", s.webAppRedeem)
-	mux.HandleFunc("/api/tg-webapp/admin/invites", s.webAppAdminInvites)
-	mux.HandleFunc("/api/tg-webapp/admin/invite-create", s.webAppAdminInviteCreate)
-	mux.HandleFunc("/api/tg-webapp/admin/invite-revoke", s.webAppAdminInviteRevoke)
+	// API 端点统一 per-IP 限流(60 次/分)。
+	mux.HandleFunc("/api/tg-webapp/me", webRL(s.webAppMe))
+	mux.HandleFunc("/api/tg-webapp/register", webRL(s.webAppRegister))
+	mux.HandleFunc("/api/tg-webapp/redeem", webRL(s.webAppRedeem))
+	mux.HandleFunc("/api/tg-webapp/admin/invites", webRL(s.webAppAdminInvites))
+	mux.HandleFunc("/api/tg-webapp/admin/invite-create", webRL(s.webAppAdminInviteCreate))
+	mux.HandleFunc("/api/tg-webapp/admin/invite-revoke", webRL(s.webAppAdminInviteRevoke))
 
 	srv := &http.Server{Addr: s.cfg.WebAppListen, Handler: mux}
 	s.webSrv = srv
@@ -380,6 +383,49 @@ func (s *Service) webAppAdminInviteRevoke(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSONResp(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// per-IP 固定窗口限流(60 次/分),给 Mini App API 端点用。
+var (
+	webRLMu  sync.Mutex
+	webRLMap = map[string]*rlEntry{}
+)
+
+func webAllow(ip string) bool {
+	webRLMu.Lock()
+	defer webRLMu.Unlock()
+	now := time.Now()
+	e := webRLMap[ip]
+	if e == nil || now.Sub(e.windowStart) >= time.Minute {
+		webRLMap[ip] = &rlEntry{count: 1, windowStart: now}
+		return true
+	}
+	e.count++
+	return e.count <= 60
+}
+
+func clientIP(r *http.Request) string {
+	if v := strings.TrimSpace(r.Header.Get("X-Real-IP")); v != "" {
+		return v
+	}
+	if v := r.Header.Get("X-Forwarded-For"); v != "" {
+		return strings.TrimSpace(strings.SplitN(v, ",", 2)[0])
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+func webRL(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !webAllow(clientIP(r)) {
+			writeJSONResp(w, http.StatusTooManyRequests, map[string]any{"error": "请求过于频繁,请稍后再试"})
+			return
+		}
+		h(w, r)
+	}
 }
 
 func writeJSONResp(w http.ResponseWriter, code int, v any) {

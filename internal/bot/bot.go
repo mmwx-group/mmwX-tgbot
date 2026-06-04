@@ -10,8 +10,8 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/iluobei/mmwX-tgbot/internal/config"
-	"github.com/iluobei/mmwX-tgbot/internal/mmwxclient"
+	"github.com/mmwx-group/mmwX-tgbot/internal/config"
+	"github.com/mmwx-group/mmwX-tgbot/internal/mmwxclient"
 )
 
 type Service struct {

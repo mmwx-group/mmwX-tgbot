@@ -32,15 +32,18 @@ type Config struct {
 	AdminTGIDs []int64 `yaml:"admin_tg_ids"`
 	// 调主控的 HTTP 超时(秒),默认 8
 	HTTPTimeoutSeconds int `yaml:"http_timeout_seconds"`
-	// Mini App HTTP 服务监听地址,默认 :8088(由前置 nginx 反代到公网 HTTPS)
+	// Mini App HTTP 服务监听地址,默认 127.0.0.1:23088(只听回环,由前置 nginx 反代到公网 HTTPS)
 	WebAppListen string `yaml:"webapp_listen"`
 	// Mini App 公网 HTTPS 地址(nginx 暴露的,如 https://mmw.2ha.me/app)。
 	// 非空时 bot 启动会把它设为 TG 菜单按钮;空则不设按钮(仅本地起服务)。
 	WebAppURL string `yaml:"webapp_url"`
+	// 调试:允许从 ?initData= 读取(本地浏览器预览用)。生产务必关闭(默认 false),
+	// 仅 Telegram 注入的 initData 才可信;开启会让带 initData 的 URL 可被分享重放。
+	WebAppDevPreview bool `yaml:"webapp_dev_preview"`
 }
 
 func Load(path string) (Config, error) {
-	c := Config{HTTPTimeoutSeconds: 8, WebAppListen: ":8088"}
+	c := Config{HTTPTimeoutSeconds: 8, WebAppListen: "127.0.0.1:23088"}
 	if path != "" {
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -80,6 +83,9 @@ func applyEnvOverrides(c *Config) {
 	}
 	if v := os.Getenv("MMWX_TGBOT_WEBAPP_URL"); v != "" {
 		c.WebAppURL = v
+	}
+	if v := os.Getenv("MMWX_TGBOT_WEBAPP_DEV_PREVIEW"); v == "1" || v == "true" {
+		c.WebAppDevPreview = true
 	}
 }
 

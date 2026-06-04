@@ -16,9 +16,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/iluobei/mmwX-tgbot/internal/bot"
-	"github.com/iluobei/mmwX-tgbot/internal/config"
-	"github.com/iluobei/mmwX-tgbot/internal/mmwxclient"
+	"github.com/mmwx-group/mmwX-tgbot/internal/bot"
+	"github.com/mmwx-group/mmwX-tgbot/internal/config"
+	"github.com/mmwx-group/mmwX-tgbot/internal/mmwxclient"
 )
 
 var version = "dev"

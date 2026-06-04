@@ -1,15 +1,21 @@
 services:
   mmwx-tgbot:
-    image: ghcr.io/iluobei/mmwx-tgbot:latest
+    image: ghcr.io/mmwx-group/mmwx-tgbot:latest
     container_name: mmwx-tgbot
     restart: unless-stopped
+    # Mini App HTTP 端口,只映射到宿主机回环(前置 nginx 反代到公网 HTTPS;不用 Mini App 可删)
+    ports:
+      - "127.0.0.1:23088:23088"
     environment:
       # 也可改为挂载 config.yaml 到 /app/config/config.yaml
-      MMWX_TGBOT_MMWX_URL: "https://mmw.2ha.me"
+      MMWX_TGBOT_MMWX_URL: "https://mmw.domain.com"
       MMWX_TGBOT_MMWX_API_TOKEN: "${MMWX_TGBOT_MMWX_API_TOKEN}"
       MMWX_TGBOT_TG_BOT_TOKEN: "${MMWX_TGBOT_TG_BOT_TOKEN}"
-      MMWX_TGBOT_PUBLIC_URL: "https://mmw.2ha.me"
       MMWX_TGBOT_ADMIN_TG_IDS: "${MMWX_TGBOT_ADMIN_TG_IDS}"
+      # 容器内监听所有网卡(由上面的 ports 限定只暴露到宿主机回环)
+      MMWX_TGBOT_WEBAPP_LISTEN: ":23088"
+      # Mini App 公网地址(配了才显示菜单按钮;不用可留空)
+      MMWX_TGBOT_WEBAPP_URL: "https://mmw.domain.com"
     # 若不用 env,挂载 config.yaml:
     # volumes:
     #   - ./config.yaml:/app/config/config.yaml:ro

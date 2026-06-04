@@ -11,7 +11,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
-	"github.com/iluobei/mmwX-tgbot/internal/mmwxclient"
+	"github.com/mmwx-group/mmwX-tgbot/internal/mmwxclient"
 )
 
 // 多步对话状态机:kind='new' 邀请码 → 问"用户名"→"邮箱"→ 调主控 /bind(kind=new)。

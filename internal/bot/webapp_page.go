@@ -1,11 +1,19 @@
 package bot
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 // webAppPage 返回 Mini App 单页(自包含,引 Telegram WebApp SDK)。
+// __DEVPREVIEW__ 注入:仅 webapp_dev_preview=true 时允许从 ?initData= 读取(本地预览),生产为 false。
 func (s *Service) webAppPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(webAppHTML))
+	flag := "false"
+	if s.cfg.WebAppDevPreview {
+		flag = "true"
+	}
+	_, _ = w.Write([]byte(strings.ReplaceAll(webAppHTML, "__DEVPREVIEW__", flag)))
 }
 
 // 主题取自 ../miaomiaowux/miaomiaowux-frontend/src/styles/theme.css:
@@ -324,7 +332,7 @@ function load(){
 (function(){
  setScheme();
  if(tg&&tg.onEvent)tg.onEvent("themeChanged",setScheme);
- var initData=(tg&&tg.initData)?tg.initData:new URLSearchParams(location.search).get("initData");
+ var initData=(tg&&tg.initData)?tg.initData:(__DEVPREVIEW__?new URLSearchParams(location.search).get("initData"):"");
  if(!initData){document.getElementById("notice").classList.remove("hide");return;}
  window.__init=initData;
  if(tg){tg.ready();tg.expand();}
