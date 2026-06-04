@@ -37,7 +37,7 @@ html.dark{
 *{box-sizing:border-box}html,body{margin:0}
 body{font-family:'Inter',-apple-system,system-ui,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-bottom:66px;}
 header{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;}
-header img{height:26px;width:auto;display:block;border-radius:6px}
+header .logo{height:26px;width:26px;display:block;flex:0 0 auto}
 header .sub{font-size:11px;color:var(--muted);margin-left:auto}
 .brand{font-size:18px;font-weight:700;display:inline-flex;align-items:baseline;line-height:1}
 /* 特效 X(移植自 miaomiaowu-docs/src/components/animated-x.tsx) */
@@ -85,7 +85,7 @@ nav svg{width:22px;height:22px}
 </head>
 <body>
 <header>
-  <img id="logo" src="https://miaomiaowu.net/images/logo.webp" alt="妙妙屋X">
+  <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="妙妙屋X"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"></path></svg>
   <span class="brand">妙妙屋<span class="ax"><span class="ax-t">X</span><span class="ax-g" aria-hidden="true">X</span><span class="ax-p" aria-hidden="true"></span></span></span>
   <span class="sub">我的面板</span>
 </header>
@@ -119,8 +119,7 @@ var tg = window.Telegram && window.Telegram.WebApp;
 function hb(n){n=Number(n)||0;if(n<1024)return n+" B";var u=["KB","MB","GB","TB"],i=-1;do{n/=1024;i++}while(n>=1024&&i<3);return n.toFixed(2)+" "+u[i];}
 function esc(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
 function setScheme(){var dark=tg?(tg.colorScheme==="dark"):window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches;
- document.documentElement.classList.toggle("dark",!!dark);
- document.getElementById("logo").src="https://miaomiaowu.net/images/logo.webp");}
+ document.documentElement.classList.toggle("dark",!!dark);}
 function copy(u){if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
  navigator.clipboard&&navigator.clipboard.writeText(u);
  if(tg&&tg.showPopup)tg.showPopup({message:"订阅链接已复制"});else alert("已复制");}
