@@ -139,6 +139,12 @@ curl -fsSL https://raw.githubusercontent.com/mmwx-group/mmwX-tgbot/main/install.
 
 依次输入 `mmwx_url`、`mmwx_api_token`、`tg_bot_token`、`admin_tg_ids`(`webapp_url` 可留空、配好 nginx 后再补)。配置在 `/etc/mmwx-tgbot/config.yaml`,服务名 `mmwx-tgbot`。
 
+**更新到最新版**(复用现有配置,不交互):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mmwx-group/mmwX-tgbot/main/install.sh | sudo bash -s update
+```
+
 ### 方式 A · 编译后 SSH 推送(开发者,自带备份回滚)
 
 ```bash
