@@ -118,13 +118,35 @@ nav svg{width:22px;height:22px}
 var tg = window.Telegram && window.Telegram.WebApp;
 function hb(n){n=Number(n)||0;if(n<1024)return n+" B";var u=["KB","MB","GB","TB"],i=-1;do{n/=1024;i++}while(n>=1024&&i<3);return n.toFixed(2)+" "+u[i];}
 function esc(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
+// toast:纯 DOM 提示,不依赖 Telegram showPopup(6.0 老客户端不支持会抛错)
+function toast(msg){var t=document.getElementById("__toast");if(!t){t=document.createElement("div");t.id="__toast";t.style.cssText="position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:9px 16px;border-radius:10px;font-size:14px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none;max-width:80%;text-align:center";document.body.appendChild(t);}t.textContent=msg;t.style.opacity="1";clearTimeout(window.__tt);window.__tt=setTimeout(function(){t.style.opacity="0";},1600);}
+// hap:震动反馈,带版本检查 + try/catch(6.1 以下不支持)
+function hap(kind,style){try{if(tg&&tg.HapticFeedback&&tg.isVersionAtLeast&&tg.isVersionAtLeast("6.1")){if(kind==="notif")tg.HapticFeedback.notificationOccurred(style);else if(kind==="sel")tg.HapticFeedback.selectionChanged();else tg.HapticFeedback.impactOccurred(style||"light");}}catch(e){}}
+// copyText:健壮复制(clipboard API + execCommand 兜底)
+function copyText(u){try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u);return;}}catch(e){}try{var ta=document.createElement("textarea");ta.value=u;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);}catch(e){}}
 function setScheme(){var dark=tg?(tg.colorScheme==="dark"):window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches;
  document.documentElement.classList.toggle("dark",!!dark);}
-function copy(u){if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("light");
- navigator.clipboard&&navigator.clipboard.writeText(u);
- if(tg&&tg.showPopup)tg.showPopup({message:"订阅链接已复制"});else alert("已复制");}
+function copy(u){hap("impact","light");copyText(u);toast("已复制订阅链接");}
 window.__copy=copy;
-function __tab(v){if(tg&&tg.HapticFeedback)tg.HapticFeedback.selectionChanged();
+// 客户端选择(value=主控订阅 ?t= 参数,口径同妙妙屋X 前端)
+var CLIENTS=[["clash","Clash / Mihomo"],["clashmeta","Clash.Meta"],["sing-box","sing-box"],["shadowrocket","Shadowrocket"],["surge","Surge"],["surgemac","Surge Mac"],["loon","Loon"],["stash","Stash"],["qx","QuantumultX"],["surfboard","Surfboard"],["v2ray","V2Ray"],["uri","通用 URI"]];
+function subURL(i,base){var t=document.getElementById("cli-"+i).value;return base+(base.indexOf("?")>=0?"&":"?")+"t="+encodeURIComponent(t);}
+function __subcopy(i,base){copy(subURL(i,base));}
+window.__subcopy=__subcopy;
+function deepLink(t,u){var e=encodeURIComponent(u);switch(t){
+ case "clash": case "clashmeta": return "clash://install-config?url="+e;
+ case "stash": return "stash://install-config?url="+e;
+ case "surge": case "surgemac": return "surge:///install-config?url="+e;
+ case "loon": return "loon://import?sub="+e;
+ case "sing-box": return "sing-box://import-remote-profile?url="+e;
+ case "shadowrocket": return "shadowrocket://add/sub://"+btoa(unescape(encodeURIComponent(u)));
+ default: return "";}}
+function __subimport(i,base){var t=document.getElementById("cli-"+i).value;var u=subURL(i,base);var dl=deepLink(t,u);
+ hap("impact","light");
+ if(!dl){copyText(u);toast("该客户端无一键导入,已复制链接");return;}
+ try{if(tg&&tg.openLink)tg.openLink(dl);else window.location.href=dl;}catch(e){try{window.location.href=dl;}catch(e2){copy(u);}}}
+window.__subimport=__subimport;
+function __tab(v){hap("sel");
  ["home","traffic","status","invites"].forEach(function(x){document.getElementById("view-"+x).classList.toggle("hide",x!==v);});
  document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.getAttribute("data-v")===v);});
  if(v==="invites"&&!window.__invLoaded){loadInvites();}}
@@ -170,7 +192,7 @@ function __redeem(btn){
   .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
   .then(function(res){btn.disabled=false;btn.textContent="兑换";
    if(!res.ok){msg.style.color="var(--warn)";msg.textContent=res.j.error||"兑换失败";return;}
-   if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred("success");
+   hap("notif","success");
    msg.style.color="var(--ok)";msg.textContent="续期成功,到期 "+(res.j.end_date||"");
    load();})
   .catch(function(){btn.disabled=false;btn.textContent="兑换";msg.style.color="var(--warn)";msg.textContent="网络错误";});
@@ -190,7 +212,7 @@ function __register(btn){
   .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
   .then(function(res){
    if(!res.ok){msg.textContent=res.j.error||"注册失败";btn.disabled=false;btn.textContent="注册并绑定";return;}
-   if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred("success");
+   hap("notif","success");
    load();
   })
   .catch(function(){msg.textContent="网络错误,请重试";btn.disabled=false;btn.textContent="注册并绑定";});
@@ -218,9 +240,16 @@ function renderHome(d){
  var subs=d.subscriptions||[];
  h+='<div class="card"><div class="title">订阅链接</div>';
  if(!subs.length)h+='<div class="muted">暂无订阅,请联系管理员。</div>';
- subs.forEach(function(sf){
-  h+='<div class="sub"><div class="u"><div>'+esc(sf.name)+(sf["default"]?'<span class="badge">默认</span>':'')+'</div><div>'+esc(sf.url)+'</div></div>';
-  h+='<button class="btn" onclick="__copy(\''+esc(sf.url)+'\')">复制</button></div>';
+ subs.forEach(function(sf,i){
+  if(i>0)h+='<div style="border-top:1px solid var(--border);margin:10px 0"></div>';
+  h+='<div><span>'+esc(sf.name)+'</span>'+(sf["default"]?'<span class="badge">默认</span>':'')+'</div>';
+  h+='<div style="display:flex;gap:6px;align-items:center;margin-top:8px">';
+  h+='<select id="cli-'+i+'" class="inp" style="margin:0;flex:1;padding:9px">';
+  CLIENTS.forEach(function(c){h+='<option value="'+c[0]+'">'+c[1]+'</option>';});
+  h+='</select>';
+  h+='<button class="btn" onclick="__subcopy('+i+',\''+esc(sf.url)+'\')">复制</button>';
+  h+='<button class="btn" style="background:transparent;color:var(--brand);border:1px solid var(--brand)" onclick="__subimport('+i+',\''+esc(sf.url)+'\')">导入</button>';
+  h+='</div>';
  });
  h+='</div>';
  h+=chart(d.history);
@@ -275,6 +304,8 @@ function renderInvites(){
  h+='<div class="muted" style="margin:10px 0 4px">有效期</div><div class="seg" id="i-dur">';
  [1,3,6,12].forEach(function(m,i){h+='<button class="'+(i==0?"active":"")+'" onclick="__durpick(this,'+m+')">'+(m==12?"1年":m+"月")+'</button>';});
  h+='</div>';
+ h+='<div class="muted" style="margin:10px 0 4px">使用次数(>1 可多用户共用一个码)</div>';
+ h+='<input id="i-max" class="inp" type="number" min="1" value="1" placeholder="使用次数">';
  h+='<div id="i-msg" class="warn" style="font-size:13px;min-height:18px;margin:4px 0"></div>';
  h+='<button class="btn" style="width:100%;padding:11px" onclick="__createInv(this)">生成兑换码</button>';
  h+='</div>';
@@ -302,14 +333,15 @@ function loadInvites(){
 function __createInv(btn){
  var msg=document.getElementById("i-msg");msg.textContent="";
  var pkg=parseInt(document.getElementById("i-pkg").value,10)||0;
- var body={package_id:pkg?pkg:null,duration_months:window.__dur||1};
+ var mu=parseInt(document.getElementById("i-max").value,10)||1;if(mu<1)mu=1;
+ var body={package_id:pkg?pkg:null,duration_months:window.__dur||1,max_uses:mu};
  btn.disabled=true;btn.textContent="生成中...";
  fetch("/api/tg-webapp/admin/invite-create",{method:"POST",headers:{"Content-Type":"application/json","X-Telegram-Init-Data":window.__init},body:JSON.stringify(body)})
   .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
   .then(function(res){btn.disabled=false;btn.textContent="生成兑换码";
    if(!res.ok){msg.textContent=res.j.error||"生成失败";return;}
-   if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred("success");
-   if(tg&&tg.showPopup)tg.showPopup({title:"已生成",message:"兑换码:"+res.j.code});
+   hap("notif","success");
+   toast("已生成兑换码:"+res.j.code);
    loadInvites();})
   .catch(function(){btn.disabled=false;btn.textContent="生成兑换码";msg.textContent="网络错误";});
 }
@@ -318,7 +350,7 @@ function __revokeInv(code,btn){
  btn.disabled=true;btn.textContent="...";
  fetch("/api/tg-webapp/admin/invite-revoke",{method:"POST",headers:{"Content-Type":"application/json","X-Telegram-Init-Data":window.__init},body:JSON.stringify({code:code})})
   .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
-  .then(function(res){if(res.ok){if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred("medium");loadInvites();}else{btn.disabled=false;btn.textContent="撤销";if(tg&&tg.showPopup)tg.showPopup({message:res.j.error||"撤销失败"});}})
+  .then(function(res){if(res.ok){hap("impact","medium");loadInvites();}else{btn.disabled=false;btn.textContent="撤销";toast(res.j.error||"撤销失败");}})
   .catch(function(){btn.disabled=false;btn.textContent="撤销";});
 }
 window.__revokeInv=__revokeInv;

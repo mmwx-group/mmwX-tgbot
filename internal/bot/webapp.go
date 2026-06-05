@@ -381,15 +381,20 @@ func (s *Service) webAppAdminInviteCreate(w http.ResponseWriter, r *http.Request
 	var body struct {
 		PackageID      *int64 `json:"package_id"`
 		DurationMonths int    `json:"duration_months"`
+		MaxUses        int    `json:"max_uses"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": "invalid body"})
 		return
 	}
-	// 兑换码统一 kind=new、数量 1(已去掉「绑定已有」与自定义次数)。
+	maxUses := body.MaxUses
+	if maxUses < 1 {
+		maxUses = 1
+	}
+	// 兑换码统一 kind=new;使用次数可设(>1 = 多用户共用一个码注册)。
 	req := mmwxclient.CreateInviteRequest{
 		Kind:           "new",
-		MaxUses:        1,
+		MaxUses:        maxUses,
 		PackageID:      body.PackageID,
 		DurationMonths: body.DurationMonths,
 	}
