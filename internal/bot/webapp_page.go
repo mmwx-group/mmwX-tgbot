@@ -133,19 +133,6 @@ var CLIENTS=[["clash","Clash / Mihomo"],["clashmeta","Clash.Meta"],["sing-box","
 function subURL(i,base){var t=document.getElementById("cli-"+i).value;return base+(base.indexOf("?")>=0?"&":"?")+"t="+encodeURIComponent(t);}
 function __subcopy(i,base){copy(subURL(i,base));}
 window.__subcopy=__subcopy;
-function deepLink(t,u){var e=encodeURIComponent(u);switch(t){
- case "clash": case "clashmeta": return "clash://install-config?url="+e;
- case "stash": return "stash://install-config?url="+e;
- case "surge": case "surgemac": return "surge:///install-config?url="+e;
- case "loon": return "loon://import?sub="+e;
- case "sing-box": return "sing-box://import-remote-profile?url="+e;
- case "shadowrocket": return "shadowrocket://add/sub://"+btoa(unescape(encodeURIComponent(u)));
- default: return "";}}
-function __subimport(i,base){var t=document.getElementById("cli-"+i).value;var u=subURL(i,base);var dl=deepLink(t,u);
- hap("impact","light");
- if(!dl){copyText(u);toast("该客户端无一键导入,已复制链接");return;}
- try{if(tg&&tg.openLink)tg.openLink(dl);else window.location.href=dl;}catch(e){try{window.location.href=dl;}catch(e2){copy(u);}}}
-window.__subimport=__subimport;
 function __tab(v){hap("sel");
  ["home","traffic","status","invites"].forEach(function(x){document.getElementById("view-"+x).classList.toggle("hide",x!==v);});
  document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.getAttribute("data-v")===v);});
@@ -247,8 +234,7 @@ function renderHome(d){
   h+='<select id="cli-'+i+'" class="inp" style="margin:0;flex:1;padding:9px">';
   CLIENTS.forEach(function(c){h+='<option value="'+c[0]+'">'+c[1]+'</option>';});
   h+='</select>';
-  h+='<button class="btn" onclick="__subcopy('+i+',\''+esc(sf.url)+'\')">复制</button>';
-  h+='<button class="btn" style="background:transparent;color:var(--brand);border:1px solid var(--brand)" onclick="__subimport('+i+',\''+esc(sf.url)+'\')">导入</button>';
+  h+='<button class="btn" onclick="__subcopy('+i+',\''+esc(sf.url)+'\')">复制订阅</button>';
   h+='</div>';
  });
  h+='</div>';
