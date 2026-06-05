@@ -85,7 +85,7 @@ nav svg{width:22px;height:22px}
 </head>
 <body>
 <header>
-  <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="妙妙屋X"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"></path></svg>
+  <img id="logo" class="logo" src="/api/tg-webapp/logo-light" alt="妙妙屋X">
   <span class="brand">妙妙屋<span class="ax"><span class="ax-t">X</span><span class="ax-g" aria-hidden="true">X</span><span class="ax-p" aria-hidden="true"></span></span></span>
   <span class="sub">我的面板</span>
 </header>
@@ -125,7 +125,8 @@ function hap(kind,style){try{if(tg&&tg.HapticFeedback&&tg.isVersionAtLeast&&tg.i
 // copyText:健壮复制(clipboard API + execCommand 兜底)
 function copyText(u){try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u);return;}}catch(e){}try{var ta=document.createElement("textarea");ta.value=u;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);}catch(e){}}
 function setScheme(){var dark=tg?(tg.colorScheme==="dark"):window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches;
- document.documentElement.classList.toggle("dark",!!dark);}
+ document.documentElement.classList.toggle("dark",!!dark);
+ var lg=document.getElementById("logo");if(lg)lg.src=dark?"/api/tg-webapp/logo-dark":"/api/tg-webapp/logo-light";}
 function copy(u){hap("impact","light");copyText(u);toast("已复制订阅链接");}
 window.__copy=copy;
 // 客户端选择(value=主控订阅 ?t= 参数,口径同妙妙屋X 前端)
@@ -302,6 +303,7 @@ function renderInvites(){
   h+='<div class="st"><div style="flex:1"><div style="font-family:monospace">'+esc(ic.code)+'</div>';
   h+='<div class="muted" style="font-size:12px">'+esc(st[0])+' · '+ic.used_count+'/'+ic.max_uses+'</div></div>';
   if(!ic.revoked)h+='<button class="btn" style="background:var(--warn)" onclick="__revokeInv(\''+esc(ic.code)+'\',this)">撤销</button>';
+  else h+='<button class="btn" style="background:var(--unknown)" onclick="__deleteInv(\''+esc(ic.code)+'\',this)">删除</button>';
   h+='</div>';});
  h+='</div>';
  document.getElementById("view-invites").innerHTML=h;
@@ -340,6 +342,14 @@ function __revokeInv(code,btn){
   .catch(function(){btn.disabled=false;btn.textContent="撤销";});
 }
 window.__revokeInv=__revokeInv;
+function __deleteInv(code,btn){
+ btn.disabled=true;btn.textContent="...";
+ fetch("/api/tg-webapp/admin/invite-delete",{method:"POST",headers:{"Content-Type":"application/json","X-Telegram-Init-Data":window.__init},body:JSON.stringify({code:code})})
+  .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+  .then(function(res){if(res.ok){hap("impact","medium");toast("已删除");loadInvites();}else{btn.disabled=false;btn.textContent="删除";toast(res.j.error||"删除失败");}})
+  .catch(function(){btn.disabled=false;btn.textContent="删除";});
+}
+window.__deleteInv=__deleteInv;
 function load(){
  fetch("/api/tg-webapp/me",{headers:{"X-Telegram-Init-Data":window.__init}})
   .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})

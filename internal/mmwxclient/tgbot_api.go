@@ -268,6 +268,11 @@ func (c *Client) RevokeInvite(ctx context.Context, code string) error {
 	return c.post(ctx, "/api/admin/tgbot/invites/revoke", map[string]any{"code": code}, nil)
 }
 
+// DeleteInvite 硬删除邀请码(仅限已不可用的)。
+func (c *Client) DeleteInvite(ctx context.Context, code string) error {
+	return c.post(ctx, "/api/admin/tgbot/invites/delete", map[string]any{"code": code}, nil)
+}
+
 // CreateInviteRequest 给 POST /api/admin/tgbot/invites。
 // kind=new 时 PackageID/DurationMonths 有意义;kind=bind 时 BindUsername 必填。
 // DurationMonths>0:注册账号有效期 = now + N 月,且 N>1 时主控自动开按月续期。

@@ -32,6 +32,8 @@ func (s *Service) startWebApp(ctx context.Context) {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/app", s.webAppPage)
+	mux.HandleFunc("/api/tg-webapp/logo-light", s.webAppLogoLight)
+	mux.HandleFunc("/api/tg-webapp/logo-dark", s.webAppLogoDark)
 	// API 端点统一 per-IP 限流(60 次/分)。
 	mux.HandleFunc("/api/tg-webapp/me", webRL(s.webAppMe))
 	mux.HandleFunc("/api/tg-webapp/register", webRL(s.webAppRegister))
@@ -39,6 +41,7 @@ func (s *Service) startWebApp(ctx context.Context) {
 	mux.HandleFunc("/api/tg-webapp/admin/invites", webRL(s.webAppAdminInvites))
 	mux.HandleFunc("/api/tg-webapp/admin/invite-create", webRL(s.webAppAdminInviteCreate))
 	mux.HandleFunc("/api/tg-webapp/admin/invite-revoke", webRL(s.webAppAdminInviteRevoke))
+	mux.HandleFunc("/api/tg-webapp/admin/invite-delete", webRL(s.webAppAdminInviteDelete))
 
 	srv := &http.Server{Addr: s.cfg.WebAppListen, Handler: mux}
 	s.webSrv = srv
@@ -423,6 +426,29 @@ func (s *Service) webAppAdminInviteRevoke(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := s.client.RevokeInvite(r.Context(), strings.TrimSpace(body.Code)); err != nil {
+		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSONResp(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// webAppAdminInviteDelete POST 硬删除邀请码(仅限已不可用的)。
+func (s *Service) webAppAdminInviteDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONResp(w, http.StatusMethodNotAllowed, map[string]any{"error": "method"})
+		return
+	}
+	if _, ok := s.adminTGID(w, r); !ok {
+		return
+	}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Code) == "" {
+		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": "code 必填"})
+		return
+	}
+	if err := s.client.DeleteInvite(r.Context(), strings.TrimSpace(body.Code)); err != nil {
 		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
