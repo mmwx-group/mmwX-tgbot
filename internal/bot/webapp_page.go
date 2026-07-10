@@ -302,6 +302,7 @@ function renderInvites(){
  list.forEach(function(ic){var st=invStatus(ic);
   h+='<div class="st"><div style="flex:1"><div style="font-family:monospace">'+esc(ic.code)+'</div>';
   h+='<div class="muted" style="font-size:12px">'+esc(st[0])+' · '+ic.used_count+'/'+ic.max_uses+'</div></div>';
+  h+='<button class="btn" onclick="__copyInv(\''+esc(ic.code)+'\')">复制文案</button>';
   if(!ic.revoked)h+='<button class="btn" style="background:var(--warn)" onclick="__revokeInv(\''+esc(ic.code)+'\',this)">撤销</button>';
   else h+='<button class="btn" style="background:var(--unknown)" onclick="__deleteInv(\''+esc(ic.code)+'\',this)">删除</button>';
   h+='</div>';});
@@ -311,6 +312,14 @@ function renderInvites(){
 }
 function __durpick(btn,m){window.__dur=m;document.querySelectorAll("#i-dur button").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");}
 window.__durpick=__durpick;
+// __copyInv:复制主控配置的注册文案(替换 {兑换码}/{主控域名}/{机器人地址});模板为空则只复制码。
+// 用 split/join 兼容老 webview(无 replaceAll)。
+function __copyInv(code){
+ var inv=window.__inv||{},tpl=(inv.redeem_template||"").trim();
+ var text=tpl?tpl.split("{兑换码}").join(code).split("{主控域名}").join(inv.master_url||"").split("{机器人地址}").join(inv.bot_url||""):code;
+ hap("impact","light");copyText(text);toast(tpl?"文案已复制":"兑换码已复制");
+}
+window.__copyInv=__copyInv;
 function loadInvites(){
  document.getElementById("view-invites").innerHTML='<div class="card"><div class="muted">加载中...</div></div>';
  fetch("/api/tg-webapp/admin/invites",{headers:{"X-Telegram-Init-Data":window.__init}})

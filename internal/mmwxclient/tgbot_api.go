@@ -319,6 +319,17 @@ func (c *Client) ListPackages(ctx context.Context) ([]Package, error) {
 	return out.Packages, nil
 }
 
+// GetRedeemTemplate 取主控配置的兑换码复制文案模板(未配置时主控会返回内置默认模板)。
+func (c *Client) GetRedeemTemplate(ctx context.Context) (string, error) {
+	var out struct {
+		RedeemTemplate string `json:"redeem_template"`
+	}
+	if err := c.get(ctx, "/api/admin/system-settings/redeem-template", nil, &out); err != nil {
+		return "", err
+	}
+	return out.RedeemTemplate, nil
+}
+
 // ============ 用户自助通知 ============
 
 // SetNotify 开关某 tg_id 的每日通知。

@@ -369,7 +369,15 @@ func (s *Service) webAppAdminInvites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pkgs, _ := s.client.ListPackages(ctx)
-	writeJSONResp(w, http.StatusOK, map[string]any{"invites": invites, "packages": pkgs})
+	// 兑换码「复制文案」用:主控可配的模板 + 占位符取值。模板取失败不阻塞列表(前端退化为只复制码)。
+	tpl, _ := s.client.GetRedeemTemplate(ctx)
+	writeJSONResp(w, http.StatusOK, map[string]any{
+		"invites":         invites,
+		"packages":        pkgs,
+		"redeem_template": tpl,
+		"master_url":      s.cfg.MMWXURL,
+		"bot_url":         s.botURL(),
+	})
 }
 
 // webAppAdminInviteCreate POST 创建邀请码。
