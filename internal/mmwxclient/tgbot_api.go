@@ -361,3 +361,55 @@ func (c *Client) NotifyDigest(ctx context.Context) ([]NotifyUser, error) {
 	}
 	return out.Users, nil
 }
+
+// ============ 管理员用户管理(miniapp:搜索 / 续期 / 改套餐)============
+
+// AdminUser 主控 /api/admin/users 返回的用户(只取 miniapp 用户管理页需要的字段)。
+type AdminUser struct {
+	Username       string  `json:"username"`
+	Nickname       string  `json:"nickname"`
+	Role           string  `json:"role"`
+	PackageID      *int64  `json:"package_id"`
+	PackageName    string  `json:"package_name,omitempty"`
+	PackageEndDate *string `json:"package_end_date,omitempty"`
+	IsActive       bool    `json:"is_active"`
+	TrafficUsed    int64   `json:"traffic_used,omitempty"`
+	TrafficLimit   int64   `json:"traffic_limit,omitempty"`
+	SpeedLimitMbps float64 `json:"speed_limit_mbps"`
+}
+
+// ListUsers 列出所有用户(返回全量,搜索在 miniapp 前端做)。端点 /api/admin/users 同为 RequireAdmin。
+func (c *Client) ListUsers(ctx context.Context) ([]AdminUser, error) {
+	var out struct {
+		Users []AdminUser `json:"users"`
+	}
+	if err := c.get(ctx, "/api/admin/users", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Users, nil
+}
+
+// ExtendUser 给已绑套餐的用户延长有效期 N 天(主控从当前到期日或今天往后延,只延期不重置流量)。
+func (c *Client) ExtendUser(ctx context.Context, username string, days int) error {
+	return c.post(ctx, "/api/admin/users/extend",
+		map[string]any{"username": username, "days": days}, nil)
+}
+
+// AssignPackage 改用户套餐。不传 expire_date/is_reset/reset_day —— 主控按新套餐自身的 CycleDays/重置设置兜底
+// (即改套餐 = 以新套餐重新起一个周期)。端点 /api/admin/packages/assign 同为 RequireAdmin。
+func (c *Client) AssignPackage(ctx context.Context, username string, packageID int64) error {
+	return c.post(ctx, "/api/admin/packages/assign",
+		map[string]any{"username": username, "package_id": packageID}, nil)
+}
+
+// GetDefaultTheme 取主控「默认主题」系统设置(flat / pixel / anime)。端点 RequireAdmin,bot token 可访问。
+// 供 Mini App 跟随主控主题使用;失败时上层自行退化为默认(pixel)。
+func (c *Client) GetDefaultTheme(ctx context.Context) (string, error) {
+	var out struct {
+		DefaultTheme string `json:"default_theme"`
+	}
+	if err := c.get(ctx, "/api/admin/system-settings/default-theme", nil, &out); err != nil {
+		return "", err
+	}
+	return out.DefaultTheme, nil
+}

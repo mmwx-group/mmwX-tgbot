@@ -1,25 +1,60 @@
 package bot
 
 import (
+	"context"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // webAppPage 返回 Mini App 单页(自包含,引 Telegram WebApp SDK)。
 // __DEVPREVIEW__ 注入:仅 webapp_dev_preview=true 时允许从 ?initData= 读取(本地预览),生产为 false。
+// __THEME__ 注入:跟随主控「默认主题」,anime 时给 <html> 加 theme-anime 类(首屏即生效,无闪烁)。
 func (s *Service) webAppPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	flag := "false"
 	if s.cfg.WebAppDevPreview {
 		flag = "true"
 	}
-	_, _ = w.Write([]byte(strings.ReplaceAll(webAppHTML, "__DEVPREVIEW__", flag)))
+	themeClass := ""
+	if s.cachedDefaultTheme(r.Context()) == "anime" {
+		themeClass = "theme-anime"
+	}
+	html := strings.ReplaceAll(webAppHTML, "__DEVPREVIEW__", flag)
+	html = strings.ReplaceAll(html, "__THEME__", themeClass)
+	_, _ = w.Write([]byte(html))
+}
+
+// cachedDefaultTheme 取主控默认主题,带 60s 缓存 —— 避免每次开面板都打一次主控。
+// 主控不可达时退化为上次缓存值(初始为空 = 默认外观),不阻塞页面渲染。
+func (s *Service) cachedDefaultTheme(ctx context.Context) string {
+	s.themeMu.Lock()
+	if time.Now().Before(s.themeExp) {
+		v := s.themeVal
+		s.themeMu.Unlock()
+		return v
+	}
+	s.themeMu.Unlock()
+
+	cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	v, err := s.client.GetDefaultTheme(cctx)
+	if err != nil {
+		s.themeMu.Lock()
+		defer s.themeMu.Unlock()
+		return s.themeVal
+	}
+	s.themeMu.Lock()
+	s.themeVal = v
+	s.themeExp = time.Now().Add(60 * time.Second)
+	s.themeMu.Unlock()
+	return v
 }
 
 // 主题取自 ../miaomiaowux/miaomiaowux-frontend/src/styles/theme.css:
 // 品牌陶土橙 #d97757(暗色 #f18c6e),暖白底 / 深色 #10131c。logo 引主控 /images/。
 const webAppHTML = `<!DOCTYPE html>
-<html lang="zh">
+<html lang="zh" class="__THEME__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -34,6 +69,27 @@ html.dark{
  --brand:#f18c6e;--brand-soft:rgba(241,140,110,.16);
  --bg:#10131c;--text:#f9f4f1;--card:#1a1f2b;--muted:#cfb8af;--border:rgba(255,255,255,.08);
 }
+/* anime 主题(跟随主控「默认主题=anime」,由服务端注入 html.theme-anime):刻晴粉紫配色。
+   覆盖 --brand 及派生色 + 动效 X 渐变。选择器特异性均高于基础规则,顺序也在其后,稳覆盖。 */
+html.theme-anime{
+ --brand:#8b5cf6;--brand-soft:#ede9fe;--radius:.75rem;
+ --bg:#f3effb;--text:#241249;--card:#fcfbff;--muted:#7c6ba0;--border:rgba(139,92,246,.2);
+}
+html.dark.theme-anime{
+ --brand:#a78bfa;--brand-soft:rgba(167,139,250,.18);
+ --bg:#160f24;--text:#f2ecff;--card:#1e1633;--muted:#b9a8d8;--border:rgba(255,255,255,.09);
+}
+html.theme-anime .ax-t{background:linear-gradient(135deg,#8b5cf6 0%,#ec4899 20%,#a78bfa 40%,#8b5cf6 60%,#d946ef 80%,#8b5cf6 100%);background-size:300% 300%;-webkit-background-clip:text;background-clip:text;color:transparent}
+html.theme-anime .ax-g{background:linear-gradient(135deg,#8b5cf6,#ec4899,#a78bfa,#8b5cf6);background-size:300% 300%;-webkit-background-clip:text;background-clip:text;color:transparent}
+html.theme-anime .ax-p::before{color:#c084fc}
+html.theme-anime .ax-p::after{color:#8b5cf6}
+/* anime 紫白棋盘格背景(同款主控 body),header/nav/输入框仍是实色浮在格子上 */
+html.theme-anime body{background-color:#faf8ff;background-image:repeating-conic-gradient(#f1ecfb 0 25%,#faf8ff 0 50%);background-size:88px 88px;background-attachment:fixed}
+html.dark.theme-anime body{background-color:#120e22;background-image:repeating-conic-gradient(#171130 0 25%,#120e22 0 50%);background-size:88px 88px;background-attachment:fixed}
+/* anime 卡片:方角 + 蕾丝花纹内边框(照搬主控 .pixel-card::after)。
+   ::after 用透明 border + border-image 画蕾丝;inset 4 + border 13 ≈ 17px,故内边距提到 18px 让内容避开花纹。 */
+html.theme-anime .card{position:relative;border:none;border-radius:0;padding:18px 16px;box-shadow:0 4px 18px -6px rgba(139,92,246,.28)}
+html.theme-anime .card::after{content:"";position:absolute;inset:4px;pointer-events:none;border:13px solid transparent;border-image:url(/api/tg-webapp/anime-lace.svg) 30 round}
 *{box-sizing:border-box}html,body{margin:0}
 body{font-family:'Inter',-apple-system,system-ui,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding-bottom:66px;}
 header{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;}
@@ -95,6 +151,7 @@ nav svg{width:22px;height:22px}
   <div id="view-traffic" class="hide"></div>
   <div id="view-status" class="hide"></div>
   <div id="view-invites" class="hide"></div>
+  <div id="view-users" class="hide"></div>
 </main>
 <nav id="nav" class="hide">
   <button data-v="home" class="active" onclick="__tab('home')">
@@ -112,6 +169,10 @@ nav svg{width:22px;height:22px}
   <button id="nav-invites" data-v="invites" class="hide" onclick="__tab('invites')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v5"/></svg>
     <span>兑换码</span>
+  </button>
+  <button id="nav-users" data-v="users" class="hide" onclick="__tab('users')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>用户</span>
   </button>
 </nav>
 <script>
@@ -135,9 +196,10 @@ function subURL(i,base){var t=document.getElementById("cli-"+i).value;return bas
 function __subcopy(i,base){copy(subURL(i,base));}
 window.__subcopy=__subcopy;
 function __tab(v){hap("sel");
- ["home","traffic","status","invites"].forEach(function(x){document.getElementById("view-"+x).classList.toggle("hide",x!==v);});
+ ["home","traffic","status","invites","users"].forEach(function(x){document.getElementById("view-"+x).classList.toggle("hide",x!==v);});
  document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.getAttribute("data-v")===v);});
- if(v==="invites"&&!window.__invLoaded){loadInvites();}}
+ if(v==="invites"&&!window.__invLoaded){loadInvites();}
+ if(v==="users"&&!window.__usersLoaded){loadUsers();}}
 window.__tab=__tab;
 
 function chart(hist){
@@ -275,7 +337,7 @@ function render(d){
  document.getElementById("view-traffic").innerHTML=renderTraffic(d);
  document.getElementById("view-status").innerHTML=renderStatus(d);
  if(d.bound!==false)document.getElementById("nav").classList.remove("hide");
- if(d.is_admin)document.getElementById("nav-invites").classList.remove("hide");
+ if(d.is_admin){document.getElementById("nav-invites").classList.remove("hide");document.getElementById("nav-users").classList.remove("hide");}
 }
 
 // ===== 管理员:邀请码 =====
@@ -359,6 +421,66 @@ function __deleteInv(code,btn){
   .catch(function(){btn.disabled=false;btn.textContent="删除";});
 }
 window.__deleteInv=__deleteInv;
+// ===== 管理员:用户管理(搜索 / 续期 / 改套餐)=====
+function uDays(end){if(!end)return null;return Math.ceil((new Date(end+"T23:59:59").getTime()-Date.now())/86400000);}
+function uBadge(end,hasPkg){if(!hasPkg)return '<span class="muted">未绑套餐</span>';var d=uDays(end);if(d===null)return '<span class="muted">无到期</span>';var col=d<0?"var(--unknown)":(d<7?"var(--warn)":"var(--ok)");return '<span style="color:'+col+'">'+(d<0?"已过期":("剩 "+d+" 天"))+'</span>';}
+function renderUsers(){
+ var h='<div class="card"><div class="title">用户管理</div>';
+ h+='<input id="u-q" class="inp" style="margin-top:0" oninput="__filterUsers()" placeholder="搜索用户名 / 昵称 / 套餐">';
+ h+='<div id="u-list" style="margin-top:8px"></div></div>';
+ document.getElementById("view-users").innerHTML=h;
+ renderUserList();
+}
+function renderUserList(){
+ var data=window.__users||{},all=data.users||[],pkgs=data.packages||[];
+ var qEl=document.getElementById("u-q"),q=(qEl?qEl.value:"").trim().toLowerCase();
+ var list=all.filter(function(u){return u.role!=="admin";}).filter(function(u){
+  if(!q)return true;
+  return (u.username||"").toLowerCase().indexOf(q)>=0||(u.nickname||"").toLowerCase().indexOf(q)>=0||(u.package_name||"").toLowerCase().indexOf(q)>=0;});
+ var h='';
+ if(!list.length){document.getElementById("u-list").innerHTML='<div class="muted" style="padding:6px 0">无匹配用户。</div>';return;}
+ list.forEach(function(u,i){var hasPkg=!!u.package_id;
+  h+='<div class="st" style="flex-direction:column;align-items:stretch;gap:6px">';
+  h+='<div style="display:flex;justify-content:space-between;gap:8px"><div style="min-width:0"><div style="font-weight:600">'+esc(u.username)+(u.nickname?' <span class="muted" style="font-weight:400">'+esc(u.nickname)+'</span>':'')+'</div><div class="muted" style="font-size:12px">'+esc(u.package_name||"未绑套餐")+(hasPkg?' · '+hb(u.traffic_used||0)+(u.traffic_limit?' / '+hb(u.traffic_limit):''):'')+'</div></div>';
+  h+='<div style="text-align:right;font-size:12px;white-space:nowrap">'+uBadge(u.package_end_date,hasPkg)+(u.package_end_date?'<div class="muted">'+esc(u.package_end_date)+'</div>':'')+'</div></div>';
+  if(hasPkg){h+='<div class="seg" style="margin-top:2px">';[30,60,90].forEach(function(dd){h+='<button onclick="__extendUser(\''+esc(u.username)+'\','+dd+',this)">+'+dd+'天</button>';});h+='</div>';}
+  h+='<div style="display:flex;gap:6px"><select id="pk-'+i+'" class="inp" style="margin-top:0;flex:1">';
+  pkgs.forEach(function(p){var sel=(u.package_id&&u.package_id==p.id)?" selected":"";h+='<option value="'+p.id+'"'+sel+'>'+esc(p.name)+'</option>';});
+  h+='</select><button class="btn" onclick="__assignPkg(\''+esc(u.username)+'\','+i+',this)">'+(hasPkg?"改套餐":"绑定")+'</button></div>';
+  h+='</div>';});
+ document.getElementById("u-list").innerHTML=h;
+}
+function __filterUsers(){renderUserList();}
+window.__filterUsers=__filterUsers;
+function loadUsers(){
+ document.getElementById("view-users").innerHTML='<div class="card"><div class="muted">加载中...</div></div>';
+ fetch("/api/tg-webapp/admin/users",{headers:{"X-Telegram-Init-Data":window.__init}})
+  .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
+  .then(function(j){window.__users=j;window.__usersLoaded=true;renderUsers();})
+  .catch(function(){document.getElementById("view-users").innerHTML='<div class="card">加载失败。</div>';});
+}
+function __extendUser(username,days,btn){
+ btn.disabled=true;var old=btn.textContent;btn.textContent="...";
+ fetch("/api/tg-webapp/admin/user-extend",{method:"POST",headers:{"Content-Type":"application/json","X-Telegram-Init-Data":window.__init},body:JSON.stringify({username:username,days:days})})
+  .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+  .then(function(res){btn.disabled=false;btn.textContent=old;
+   if(!res.ok){toast(res.j.error||"续期失败");return;}
+   hap("notif","success");toast("已为 "+username+" 续期 "+days+" 天");loadUsers();})
+  .catch(function(){btn.disabled=false;btn.textContent=old;toast("网络错误");});
+}
+window.__extendUser=__extendUser;
+function __assignPkg(username,i,btn){
+ var sel=document.getElementById("pk-"+i);var pid=parseInt(sel?sel.value:"0",10)||0;
+ if(pid<=0){toast("请选择套餐");return;}
+ btn.disabled=true;var old=btn.textContent;btn.textContent="...";
+ fetch("/api/tg-webapp/admin/user-assign",{method:"POST",headers:{"Content-Type":"application/json","X-Telegram-Init-Data":window.__init},body:JSON.stringify({username:username,package_id:pid})})
+  .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+  .then(function(res){btn.disabled=false;btn.textContent=old;
+   if(!res.ok){toast(res.j.error||"修改失败");return;}
+   hap("notif","success");toast("已修改 "+username+" 的套餐");loadUsers();})
+  .catch(function(){btn.disabled=false;btn.textContent=old;toast("网络错误");});
+}
+window.__assignPkg=__assignPkg;
 function load(){
  fetch("/api/tg-webapp/me",{headers:{"X-Telegram-Init-Data":window.__init}})
   .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
@@ -368,7 +490,10 @@ function load(){
 (function(){
  setScheme();
  if(tg&&tg.onEvent)tg.onEvent("themeChanged",setScheme);
- var initData=(tg&&tg.initData)?tg.initData:(__DEVPREVIEW__?new URLSearchParams(location.search).get("initData"):"");
+ var initData=(tg&&tg.initData)?tg.initData:"";
+ // 本地浏览器预览(webapp_dev_preview=true):无真实 initData 时,优先用 ?initData= 传入的真实签名串,
+ // 否则退化为哨兵值 "__devpreview__",后端以第一个 admin_tg_id 身份放行,免 Telegram 直接开发调试。
+ if(!initData&&__DEVPREVIEW__){initData=new URLSearchParams(location.search).get("initData")||"__devpreview__";}
  if(!initData){document.getElementById("notice").classList.remove("hide");return;}
  window.__init=initData;
  if(tg){tg.ready();tg.expand();}

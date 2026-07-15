@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -22,6 +23,11 @@ type Service struct {
 	cancel      context.CancelFunc
 	webSrv      *http.Server
 	botUsername string // 由 getMe 获取,用于兑换码文案的 {机器人地址} = https://t.me/<botUsername>
+
+	// Mini App 主题跟随主控「默认主题」的 60s 缓存(见 cachedDefaultTheme)
+	themeMu  sync.Mutex
+	themeVal string
+	themeExp time.Time
 }
 
 // botURL 返回机器人的 t.me 链接;拿不到 username 时返回空串。

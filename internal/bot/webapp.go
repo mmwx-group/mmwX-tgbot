@@ -34,6 +34,7 @@ func (s *Service) startWebApp(ctx context.Context) {
 	mux.HandleFunc("/app", s.webAppPage)
 	mux.HandleFunc("/api/tg-webapp/logo-light", s.webAppLogoLight)
 	mux.HandleFunc("/api/tg-webapp/logo-dark", s.webAppLogoDark)
+	mux.HandleFunc("/api/tg-webapp/anime-lace.svg", s.webAppLace)
 	// API 端点统一 per-IP 限流(60 次/分)。
 	mux.HandleFunc("/api/tg-webapp/me", webRL(s.webAppMe))
 	mux.HandleFunc("/api/tg-webapp/register", webRL(s.webAppRegister))
@@ -42,6 +43,10 @@ func (s *Service) startWebApp(ctx context.Context) {
 	mux.HandleFunc("/api/tg-webapp/admin/invite-create", webRL(s.webAppAdminInviteCreate))
 	mux.HandleFunc("/api/tg-webapp/admin/invite-revoke", webRL(s.webAppAdminInviteRevoke))
 	mux.HandleFunc("/api/tg-webapp/admin/invite-delete", webRL(s.webAppAdminInviteDelete))
+	// 管理员用户管理:搜索(列全量前端过滤)/ 续期 / 改套餐
+	mux.HandleFunc("/api/tg-webapp/admin/users", webRL(s.webAppAdminUsers))
+	mux.HandleFunc("/api/tg-webapp/admin/user-extend", webRL(s.webAppAdminUserExtend))
+	mux.HandleFunc("/api/tg-webapp/admin/user-assign", webRL(s.webAppAdminUserAssign))
 
 	srv := &http.Server{Addr: s.cfg.WebAppListen, Handler: mux}
 	s.webSrv = srv
@@ -118,13 +123,29 @@ func hmacSum(key, msg []byte) []byte {
 	return m.Sum(nil)
 }
 
+// devPreviewInitData 是本地浏览器预览时前端注入的哨兵值(见 webapp_page.go 的 __DEVPREVIEW__ 分支)。
+const devPreviewInitData = "__devpreview__"
+
+// validateInitData(方法)在纯函数校验之外加一层 dev preview 旁路:
+// 仅当 webapp_dev_preview=true 且收到哨兵值时,以第一个 admin_tg_id 身份放行,方便浏览器直接开发调试。
+// 生产环境(dev preview 关闭)永远走签名校验,哨兵值无效。
+func (s *Service) validateInitData(initData string) (int64, string, error) {
+	if s.cfg.WebAppDevPreview && initData == devPreviewInitData {
+		if len(s.cfg.AdminTGIDs) == 0 {
+			return 0, "", errors.New("dev preview 需在 admin_tg_ids 配置至少一个管理员")
+		}
+		return s.cfg.AdminTGIDs[0], "devpreview", nil
+	}
+	return validateInitData(initData, s.cfg.TGBotToken)
+}
+
 // webAppMe 校验 initData → 反查账号 → 聚合账号/流量/节点/订阅。
 func (s *Service) webAppMe(w http.ResponseWriter, r *http.Request) {
 	initData := r.Header.Get("X-Telegram-Init-Data")
 	if initData == "" {
 		initData = r.URL.Query().Get("initData")
 	}
-	tgID, handle, err := validateInitData(initData, s.cfg.TGBotToken)
+	tgID, handle, err := s.validateInitData(initData)
 	if err != nil {
 		writeJSONResp(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
 		return
@@ -283,7 +304,7 @@ func (s *Service) webAppRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	initData := r.Header.Get("X-Telegram-Init-Data")
-	tgID, handle, err := validateInitData(initData, s.cfg.TGBotToken)
+	tgID, handle, err := s.validateInitData(initData)
 	if err != nil {
 		writeJSONResp(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
 		return
@@ -320,7 +341,7 @@ func (s *Service) webAppRedeem(w http.ResponseWriter, r *http.Request) {
 		writeJSONResp(w, http.StatusMethodNotAllowed, map[string]any{"error": "method"})
 		return
 	}
-	tgID, _, err := validateInitData(r.Header.Get("X-Telegram-Init-Data"), s.cfg.TGBotToken)
+	tgID, _, err := s.validateInitData(r.Header.Get("X-Telegram-Init-Data"))
 	if err != nil {
 		writeJSONResp(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
 		return
@@ -345,7 +366,7 @@ func (s *Service) webAppRedeem(w http.ResponseWriter, r *http.Request) {
 // adminTGID 校验 initData 且要求是管理员;失败时已写好响应并返回 ok=false。
 // 授权严格服务端判定(从签名校验出的 tgID),不信任任何前端标志。
 func (s *Service) adminTGID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	tgID, _, err := validateInitData(r.Header.Get("X-Telegram-Init-Data"), s.cfg.TGBotToken)
+	tgID, _, err := s.validateInitData(r.Header.Get("X-Telegram-Init-Data"))
 	if err != nil {
 		writeJSONResp(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
 		return 0, false
@@ -457,6 +478,72 @@ func (s *Service) webAppAdminInviteDelete(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := s.client.DeleteInvite(r.Context(), strings.TrimSpace(body.Code)); err != nil {
+		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSONResp(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// webAppAdminUsers GET 列用户 + 套餐(搜索在前端做,改套餐下拉用套餐列表)。
+func (s *Service) webAppAdminUsers(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.adminTGID(w, r); !ok {
+		return
+	}
+	ctx := r.Context()
+	users, err := s.client.ListUsers(ctx)
+	if err != nil {
+		writeJSONResp(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		return
+	}
+	pkgs, _ := s.client.ListPackages(ctx)
+	writeJSONResp(w, http.StatusOK, map[string]any{
+		"users":    users,
+		"packages": pkgs,
+	})
+}
+
+// webAppAdminUserExtend POST 给用户续期(+N 天)。
+func (s *Service) webAppAdminUserExtend(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONResp(w, http.StatusMethodNotAllowed, map[string]any{"error": "method"})
+		return
+	}
+	if _, ok := s.adminTGID(w, r); !ok {
+		return
+	}
+	var body struct {
+		Username string `json:"username"`
+		Days     int    `json:"days"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Username) == "" || body.Days <= 0 {
+		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": "username / days 必填"})
+		return
+	}
+	if err := s.client.ExtendUser(r.Context(), strings.TrimSpace(body.Username), body.Days); err != nil {
+		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSONResp(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// webAppAdminUserAssign POST 改用户套餐。
+func (s *Service) webAppAdminUserAssign(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONResp(w, http.StatusMethodNotAllowed, map[string]any{"error": "method"})
+		return
+	}
+	if _, ok := s.adminTGID(w, r); !ok {
+		return
+	}
+	var body struct {
+		Username  string `json:"username"`
+		PackageID int64  `json:"package_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Username) == "" || body.PackageID <= 0 {
+		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": "username / package_id 必填"})
+		return
+	}
+	if err := s.client.AssignPackage(r.Context(), strings.TrimSpace(body.Username), body.PackageID); err != nil {
 		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
