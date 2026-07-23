@@ -21,6 +21,7 @@ func registerCommands(b *bot.Bot, s *Service) {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "notify", bot.MatchTypeCommand, s.handleNotify)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "admin_invite", bot.MatchTypeCommand, s.withRateLimit(s.handleAdminInvite))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "admin_user", bot.MatchTypeCommand, s.withRateLimit(s.handleAdminUser))
+	b.RegisterHandler(bot.HandlerTypeMessageText, "announce", bot.MatchTypeCommand, s.withRateLimit(s.handleAnnounce))
 	// /admin_invite create 的按钮交互回调(类型/套餐/有效期)。
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "iv:", bot.MatchTypePrefix, s.handleInviteCallback)
 }
@@ -46,6 +47,7 @@ func (s *Service) setMyCommands(ctx context.Context, b *bot.Bot) {
 	adminCmds := append(append([]models.BotCommand{}, userCmds...),
 		models.BotCommand{Command: "admin_invite", Description: "邀请码 list/create/revoke"},
 		models.BotCommand{Command: "admin_user", Description: "查指定用户"},
+		models.BotCommand{Command: "announce", Description: "发布公告(广播给所有用户)"},
 	)
 	for _, id := range s.cfg.AdminTGIDs {
 		_, _ = b.SetMyCommands(ctx, &bot.SetMyCommandsParams{

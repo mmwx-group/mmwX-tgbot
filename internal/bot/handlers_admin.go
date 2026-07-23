@@ -103,3 +103,26 @@ func (s *Service) handleAdminUser(ctx context.Context, b *bot.Bot, update *model
 		Text:   formatSummaryFromClient(summary),
 	})
 }
+
+// handleAnnounce /announce <公告内容> — 管理员发布一条公告(广播给所有绑定 TG 的用户 + Mini App 横幅)。
+func (s *Service) handleAnnounce(ctx context.Context, b *bot.Bot, update *models.Update) {
+	if update.Message == nil || update.Message.From == nil {
+		return
+	}
+	chatID := update.Message.Chat.ID
+	tgID := update.Message.From.ID
+	if !s.cfg.IsAdmin(tgID) {
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: "本命令仅管理员可用。"})
+		return
+	}
+	body := strings.TrimSpace(strings.TrimPrefix(update.Message.Text, "/announce"))
+	if body == "" {
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: "用法: /announce <公告内容>\n将广播给所有绑定 TG 的用户,并显示在 Mini App。"})
+		return
+	}
+	if err := s.client.PostAnnouncement(ctx, "公告", body); err != nil {
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: "发布失败:" + err.Error()})
+		return
+	}
+	_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: "✅ 公告已发布,将在 1 分钟内广播给所有用户,并显示在 Mini App。"})
+}

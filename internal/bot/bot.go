@@ -73,6 +73,7 @@ func (s *Service) Start(parent context.Context) error {
 		log.Printf("[mmwX-tgbot] long-poll stopped")
 	}()
 	go s.runDailyNotifier(ctx, b)
+	go s.runAnnouncementBroadcaster(ctx, b)
 	return nil
 }
 

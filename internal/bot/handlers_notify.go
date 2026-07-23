@@ -125,6 +125,55 @@ func (s *Service) pushDailyNotifications(ctx context.Context, b *bot.Bot) {
 	log.Printf("[notify] 每日推送完成,共 %d 个用户", sent)
 }
 
+// announcePollInterval 公告轮询间隔:每分钟拉一次主控待推送公告并广播。
+const announcePollInterval = 60 * time.Second
+
+// runAnnouncementBroadcaster 周期轮询主控的待推送公告,广播给所有绑定 TG 的用户。
+func (s *Service) runAnnouncementBroadcaster(ctx context.Context, b *bot.Bot) {
+	ticker := time.NewTicker(announcePollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.broadcastPendingAnnouncements(ctx, b)
+		}
+	}
+}
+
+func (s *Service) broadcastPendingAnnouncements(ctx context.Context, b *bot.Bot) {
+	items, err := s.client.PendingAnnouncements(ctx)
+	if err != nil {
+		log.Printf("[announce] 拉取待推送公告失败: %v", err)
+		return
+	}
+	for _, a := range items {
+		text := formatAnnouncement(a.Title, a.Body)
+		sent := 0
+		for _, tgID := range a.Recipients { // 收件人已由主控按「有套餐 + 节点归属」定向筛好
+			if tgID == 0 {
+				continue
+			}
+			_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: tgID, Text: text})
+			sent++
+			time.Sleep(50 * time.Millisecond) // 限速 ~20 msg/s,避免 Telegram 429
+		}
+		// 先回填投递状态再进入下一条,避免下轮重复推送。
+		if err := s.client.MarkAnnouncementDelivered(ctx, a.ID); err != nil {
+			log.Printf("[announce] 回填公告 %d 投递状态失败: %v", a.ID, err)
+		}
+		log.Printf("[announce] 公告 #%d 已推送 %d 个用户", a.ID, sent)
+	}
+}
+
+func formatAnnouncement(title, body string) string {
+	if strings.TrimSpace(title) == "" {
+		return body
+	}
+	return "📢 " + title + "\n\n" + body
+}
+
 // formatDailyTraffic 渲染每日流量播报(同 /traffic 口径)。
 func formatDailyTraffic(u mmwxclient.NotifyUser) string {
 	pkgName := u.PackageName

@@ -47,6 +47,9 @@ func (s *Service) startWebApp(ctx context.Context) {
 	mux.HandleFunc("/api/tg-webapp/admin/users", webRL(s.webAppAdminUsers))
 	mux.HandleFunc("/api/tg-webapp/admin/user-extend", webRL(s.webAppAdminUserExtend))
 	mux.HandleFunc("/api/tg-webapp/admin/user-assign", webRL(s.webAppAdminUserAssign))
+	mux.HandleFunc("/api/tg-webapp/admin/announce", webRL(s.webAppAdminAnnounce))
+	mux.HandleFunc("/api/tg-webapp/admin/announcements", webRL(s.webAppAdminAnnouncementsList))
+	mux.HandleFunc("/api/tg-webapp/admin/announce-delete", webRL(s.webAppAdminAnnounceDelete))
 
 	srv := &http.Server{Addr: s.cfg.WebAppListen, Handler: mux}
 	s.webSrv = srv
@@ -294,6 +297,15 @@ func (s *Service) webAppMe(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 生效公告(按套餐/节点归属定向)→ Mini App 首页横幅
+	if anns, aerr := s.client.ActiveAnnouncements(ctx, username); aerr == nil && len(anns) > 0 {
+		list := make([]map[string]any, 0, len(anns))
+		for _, a := range anns {
+			list = append(list, map[string]any{"type": a.Type, "title": a.Title, "body": a.Body})
+		}
+		resp["announcements"] = list
+	}
+
 	writeJSONResp(w, http.StatusOK, resp)
 }
 
@@ -376,6 +388,66 @@ func (s *Service) adminTGID(w http.ResponseWriter, r *http.Request) (int64, bool
 		return 0, false
 	}
 	return tgID, true
+}
+
+// webAppAdminAnnounce 管理员在 Mini App 内发布公告(广播 + 横幅)。
+func (s *Service) webAppAdminAnnounce(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.adminTGID(w, r); !ok {
+		return
+	}
+	var body struct {
+		Title string `json:"title"`
+		Body  string `json:"body"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Body) == "" {
+		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": "请输入公告内容"})
+		return
+	}
+	title := strings.TrimSpace(body.Title)
+	if title == "" {
+		title = "公告"
+	}
+	if err := s.client.PostAnnouncement(r.Context(), title, strings.TrimSpace(body.Body)); err != nil {
+		writeJSONResp(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSONResp(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// webAppAdminAnnouncementsList 管理员在 Mini App 查看当前生效公告(列表)。
+func (s *Service) webAppAdminAnnouncementsList(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.adminTGID(w, r); !ok {
+		return
+	}
+	items, err := s.client.ListAnnouncements(r.Context())
+	if err != nil {
+		writeJSONResp(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		return
+	}
+	list := make([]map[string]any, 0, len(items))
+	for _, a := range items {
+		list = append(list, map[string]any{"id": a.ID, "type": a.Type, "title": a.Title, "body": a.Body})
+	}
+	writeJSONResp(w, http.StatusOK, map[string]any{"announcements": list})
+}
+
+// webAppAdminAnnounceDelete 管理员在 Mini App 删除一条公告。
+func (s *Service) webAppAdminAnnounceDelete(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.adminTGID(w, r); !ok {
+		return
+	}
+	var body struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ID <= 0 {
+		writeJSONResp(w, http.StatusBadRequest, map[string]any{"error": "无效的公告 id"})
+		return
+	}
+	if err := s.client.DeleteAnnouncement(r.Context(), body.ID); err != nil {
+		writeJSONResp(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSONResp(w, http.StatusOK, map[string]any{"success": true})
 }
 
 // webAppAdminInvites GET 列邀请码 + 套餐(供生成表单选套餐)。

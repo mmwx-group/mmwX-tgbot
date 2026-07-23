@@ -268,9 +268,22 @@ function __register(btn){
   .catch(function(){msg.textContent="网络错误,请重试";btn.disabled=false;btn.textContent="注册并绑定";});
 }
 window.__register=__register;
+function renderAnnouncements(list){
+ if(!list||!list.length)return "";
+ var h="";
+ list.forEach(function(an){
+  // 被墙类用告警红,其它用品牌色左边框;标题可空
+  var warn=(an.type==="node_blocked");
+  h+='<div class="card" style="border-left:3px solid '+(warn?"var(--warn)":"var(--brand)")+'">';
+  h+='<div class="title" style="color:'+(warn?"var(--warn)":"var(--brand)")+'">📢 '+(an.title?esc(an.title):"公告")+'</div>';
+  h+='<div style="white-space:pre-wrap;line-height:1.6">'+esc(an.body||"")+'</div>';
+  h+='</div>';
+ });
+ return h;
+}
 function renderHome(d){
- if(d.bound===false)return renderRegister();
- var h="",a=d.account||{};
+ if(d.bound===false)return renderAnnouncements(d.announcements)+renderRegister();
+ var h=renderAnnouncements(d.announcements),a=d.account||{};
  h+='<div class="card"><div class="row" style="margin:0"><span style="font-size:17px;font-weight:600">'+esc(a.username)+'</span><span class="muted">'+(a.role==="admin"?"管理员":"用户")+(a.is_active?"":" · 已停用")+'</span></div>';
  if(a.email)h+='<div class="muted" style="margin-top:3px">'+esc(a.email)+'</div>';
  h+='</div>';
@@ -344,7 +357,14 @@ function render(d){
 function invStatus(ic){if(ic.revoked)return["✗ 已撤销","var(--warn)"];if(!ic.usable)return["○ 已用尽/过期","var(--unknown)"];return["✓ 可用","var(--ok)"];}
 function renderInvites(){
  var inv=window.__inv||{},pkgs=inv.packages||[],list=inv.invites||[];
- var h='<div class="card"><div class="title">生成兑换码</div>';
+ var h='<div class="card"><div class="title">发布公告</div>';
+ h+='<input id="an-title" class="inp" placeholder="标题(可空,默认「公告」)">';
+ h+='<textarea id="an-body" class="inp" rows="3" placeholder="公告内容 — 广播给所有绑定用户 + 显示在 Mini App"></textarea>';
+ h+='<div id="an-msg" class="warn" style="font-size:13px;min-height:18px;margin:4px 0"></div>';
+ h+='<button class="btn" style="width:100%;padding:11px" onclick="__postAnnounce(this)">发布公告</button>';
+ h+='</div>';
+ h+='<div class="card"><div class="title">当前生效公告</div><div id="announce-list"><div class="muted">加载中…</div></div></div>';
+ h+='<div class="card"><div class="title">生成兑换码</div>';
  h+='<div class="muted" style="margin-bottom:4px">套餐</div>';
  h+='<select id="i-pkg" class="inp" style="margin-top:0">';
  h+='<option value="0">不绑套餐</option>';
@@ -371,7 +391,35 @@ function renderInvites(){
  h+='</div>';
  document.getElementById("view-invites").innerHTML=h;
  window.__dur=1;
+ loadAnnouncements();
 }
+// 加载当前生效公告 → 渲染到 #announce-list(带删除按钮)
+function loadAnnouncements(){
+ var box=document.getElementById("announce-list"); if(!box)return;
+ fetch("/api/tg-webapp/admin/announcements",{headers:{"X-Telegram-Init-Data":window.__init}})
+  .then(function(r){return r.json();})
+  .then(function(j){
+   var arr=(j&&j.announcements)||[];
+   if(!arr.length){box.innerHTML='<div class="muted">暂无生效公告。</div>';return;}
+   var h="";
+   arr.forEach(function(a){
+    h+='<div class="st"><div style="flex:1;min-width:0">';
+    h+='<div style="font-weight:600">'+esc(a.title||"公告")+' <span class="muted" style="font-size:11px">'+esc(a.type||"")+'</span></div>';
+    h+='<div class="muted" style="font-size:12px;white-space:pre-wrap;word-break:break-all">'+esc(a.body||"")+'</div></div>';
+    h+='<button class="btn" style="background:var(--warn)" onclick="__delAnnounce('+a.id+',this)">删除</button></div>';
+   });
+   box.innerHTML=h;
+  })
+  .catch(function(){box.innerHTML='<div class="muted">加载失败。</div>';});
+}
+function __delAnnounce(id,btn){
+ btn.disabled=true;btn.textContent="…";
+ fetch("/api/tg-webapp/admin/announce-delete",{method:"POST",headers:{"Content-Type":"application/json","X-Telegram-Init-Data":window.__init},body:JSON.stringify({id:id})})
+  .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+  .then(function(res){if(!res.ok){btn.disabled=false;btn.textContent="删除";toast(res.j.error||"删除失败");return;}hap("notif","success");loadAnnouncements();})
+  .catch(function(){btn.disabled=false;btn.textContent="删除";toast("网络错误");});
+}
+window.__delAnnounce=__delAnnounce;
 function __durpick(btn,m){window.__dur=m;document.querySelectorAll("#i-dur button").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");}
 window.__durpick=__durpick;
 // __copyInv:复制主控配置的注册文案(替换 {兑换码}/{主控域名}/{机器人地址});模板为空则只复制码。
@@ -382,6 +430,20 @@ function __copyInv(code){
  hap("impact","light");copyText(text);toast(tpl?"文案已复制":"兑换码已复制");
 }
 window.__copyInv=__copyInv;
+function __postAnnounce(btn){
+ var msg=document.getElementById("an-msg");msg.textContent="";
+ var title=document.getElementById("an-title").value.trim();
+ var body=document.getElementById("an-body").value.trim();
+ if(!body){msg.textContent="请输入公告内容";return;}
+ btn.disabled=true;btn.textContent="发布中...";
+ fetch("/api/tg-webapp/admin/announce",{method:"POST",headers:{"Content-Type":"application/json","X-Telegram-Init-Data":window.__init},body:JSON.stringify({title:title,body:body})})
+  .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+  .then(function(res){btn.disabled=false;btn.textContent="发布公告";
+   if(!res.ok){msg.textContent=res.j.error||"发布失败";return;}
+   hap("notif","success");document.getElementById("an-title").value="";document.getElementById("an-body").value="";toast("公告已发布");loadAnnouncements();})
+  .catch(function(){btn.disabled=false;btn.textContent="发布公告";msg.textContent="网络错误";});
+}
+window.__postAnnounce=__postAnnounce;
 function loadInvites(){
  document.getElementById("view-invites").innerHTML='<div class="card"><div class="muted">加载中...</div></div>';
  fetch("/api/tg-webapp/admin/invites",{headers:{"X-Telegram-Init-Data":window.__init}})

@@ -362,6 +362,68 @@ func (c *Client) NotifyDigest(ctx context.Context) ([]NotifyUser, error) {
 	return out.Users, nil
 }
 
+// ============ 公告 ============
+
+// Announcement 公告实例。Recipients 仅 pending 接口返回(该公告的定向收件人 tg_id)。
+type Announcement struct {
+	ID         int64   `json:"id"`
+	Type       string  `json:"type"`
+	Title      string  `json:"title"`
+	Body       string  `json:"body"`
+	Recipients []int64 `json:"recipients,omitempty"`
+}
+
+// PendingAnnouncements 拉取待 bot 推送的公告,每条自带定向收件人(有套餐 + 节点相关的仅含该节点用户)。
+func (c *Client) PendingAnnouncements(ctx context.Context) ([]Announcement, error) {
+	var out struct {
+		Announcements []Announcement `json:"announcements"`
+	}
+	if err := c.get(ctx, "/api/admin/tgbot/announcements/pending", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Announcements, nil
+}
+
+// MarkAnnouncementDelivered 标记公告已由 bot 推送(避免重复发)。
+func (c *Client) MarkAnnouncementDelivered(ctx context.Context, id int64) error {
+	return c.post(ctx, "/api/admin/tgbot/announcements/delivered", map[string]any{"id": id}, nil)
+}
+
+// ActiveAnnouncements 拉取该用户当前应看到的生效公告(主控按套餐/节点归属定向过滤),供 Mini App 横幅。
+func (c *Client) ActiveAnnouncements(ctx context.Context, username string) ([]Announcement, error) {
+	q := url.Values{}
+	q.Set("username", username)
+	var out struct {
+		Announcements []Announcement `json:"announcements"`
+	}
+	if err := c.get(ctx, "/api/admin/tgbot/announcements/active", q, &out); err != nil {
+		return nil, err
+	}
+	return out.Announcements, nil
+}
+
+// PostAnnouncement 管理员经 bot 命令 / miniapp 发布一条公告。
+func (c *Client) PostAnnouncement(ctx context.Context, title, body string) error {
+	return c.post(ctx, "/api/admin/tgbot/announcements",
+		map[string]any{"type": "general", "title": title, "body": body}, nil)
+}
+
+// ListAnnouncements 列出所有当前生效公告(管理员视角,不按用户过滤),供 Mini App 管理页。
+func (c *Client) ListAnnouncements(ctx context.Context) ([]Announcement, error) {
+	var out struct {
+		Announcements []Announcement `json:"announcements"`
+	}
+	if err := c.get(ctx, "/api/admin/announcements", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Announcements, nil
+}
+
+// DeleteAnnouncement 删除一条公告(Mini App 管理页)。
+func (c *Client) DeleteAnnouncement(ctx context.Context, id int64) error {
+	return c.doRequest(ctx, "DELETE", "/api/admin/announcements?id="+strconv.FormatInt(id, 10), nil, nil)
+}
+
 // ============ 管理员用户管理(miniapp:搜索 / 续期 / 改套餐)============
 
 // AdminUser 主控 /api/admin/users 返回的用户(只取 miniapp 用户管理页需要的字段)。
