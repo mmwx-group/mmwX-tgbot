@@ -258,6 +258,9 @@ internal/
 
 <details>
 <summary>更新日志</summary>
+### v0.1.2 (2026-07-23)
+- 🌈支持公告
+
 ### v0.1.1 (2026-07-15)
 - chore: release v0.1.1
 
