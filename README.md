@@ -145,6 +145,14 @@ curl -fsSL https://raw.githubusercontent.com/mmwx-group/mmwX-tgbot/main/install.
 curl -fsSL https://raw.githubusercontent.com/mmwx-group/mmwX-tgbot/main/install.sh | sudo bash -s update
 ```
 
+**卸载**(默认保留 `/etc/mmwx-tgbot` 配置):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mmwx-group/mmwX-tgbot/main/install.sh | sudo bash -s uninstall
+# 同时删除配置:
+curl -fsSL https://raw.githubusercontent.com/mmwx-group/mmwX-tgbot/main/install.sh | sudo bash -s uninstall --purge
+```
+
 ### 方式 A · 编译后 SSH 推送(开发者,自带备份回滚)
 
 ```bash

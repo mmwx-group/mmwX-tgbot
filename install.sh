@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# mmwX-tgbot 一键安装 / 更新脚本
+# mmwX-tgbot 一键安装 / 更新 / 卸载脚本
 #
 #   安装(交互):curl -fsSL https://raw.githubusercontent.com/mmwx-group/mmwX-tgbot/main/install.sh | sudo bash
 #   更新(复用现有配置):curl -fsSL https://raw.githubusercontent.com/mmwx-group/mmwX-tgbot/main/install.sh | sudo bash -s update
+#   卸载(保留配置):curl -fsSL https://raw.githubusercontent.com/mmwx-group/mmwX-tgbot/main/install.sh | sudo bash -s uninstall
+#   彻底卸载:sudo bash install.sh uninstall --purge
 #   # 下载后:sudo bash install.sh        # 安装
 #   #         sudo bash install.sh update # 更新
 set -euo pipefail
@@ -13,6 +15,7 @@ CONFIG_DIR="/etc/mmwx-tgbot"
 CONFIG_FILE="$CONFIG_DIR/config.yaml"
 SERVICE="mmwx-tgbot"
 SERVICE_FILE="/etc/systemd/system/$SERVICE.service"
+MODE="${1:-install}"
 
 # ---- 颜色 ----
 if [[ -t 1 ]]; then
@@ -26,20 +29,24 @@ err(){ echo "${RED}✖${R} $*" >&2; }
 [[ $EUID -eq 0 ]] || { err "请用 root 运行:sudo bash install.sh"; exit 1; }
 
 # ---- 下载工具 ----
-if command -v curl >/dev/null 2>&1; then DLO(){ curl -fsSL -o "$1" "$2"; }
-elif command -v wget >/dev/null 2>&1; then DLO(){ wget -qO "$1" "$2"; }
-else err "需要 curl 或 wget"; exit 1; fi
+if [[ "$MODE" != "uninstall" && "$MODE" != "--uninstall" && "$MODE" != "-r" ]]; then
+  if command -v curl >/dev/null 2>&1; then DLO(){ curl -fsSL -o "$1" "$2"; }
+  elif command -v wget >/dev/null 2>&1; then DLO(){ wget -qO "$1" "$2"; }
+  else err "需要 curl 或 wget"; exit 1; fi
+fi
 
 # ---- 架构检测 ----
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-case "$(uname -m)" in
-  x86_64|amd64) ARCH=amd64 ;;
-  aarch64|arm64) ARCH=arm64 ;;
-  *) err "不支持的架构:$(uname -m)"; exit 1 ;;
-esac
-[[ "$OS" == "linux" ]] || warn "当前系统 $OS 非 linux,systemd 步骤可能不适用"
-ASSET="mmwx-tgbot-${OS}-${ARCH}"
-URL="https://github.com/$REPO/releases/latest/download/$ASSET"
+if [[ "$MODE" != "uninstall" && "$MODE" != "--uninstall" && "$MODE" != "-r" ]]; then
+  OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  case "$(uname -m)" in
+    x86_64|amd64) ARCH=amd64 ;;
+    aarch64|arm64) ARCH=arm64 ;;
+    *) err "不支持的架构:$(uname -m)"; exit 1 ;;
+  esac
+  [[ "$OS" == "linux" ]] || warn "当前系统 $OS 非 linux,systemd 步骤可能不适用"
+  ASSET="mmwx-tgbot-${OS}-${ARCH}"
+  URL="https://github.com/$REPO/releases/latest/download/$ASSET"
+fi
 
 # ---- 公共:下载二进制 ----
 download_binary() {
@@ -87,9 +94,32 @@ restart_and_check() {
   fi
 }
 
-MODE="${1:-install}"
-
 case "$MODE" in
+  # ============ 卸载 ============
+  uninstall|--uninstall|-r)
+    echo
+    echo "${B}========== mmwX-tgbot 卸载 ==========${R}"
+
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl stop "$SERVICE" >/dev/null 2>&1 || true
+      systemctl disable "$SERVICE" >/dev/null 2>&1 || true
+    fi
+    rm -f "$SERVICE_FILE" "$BIN_PATH"
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl daemon-reload >/dev/null 2>&1 || true
+      systemctl reset-failed "$SERVICE" >/dev/null 2>&1 || true
+    fi
+
+    if [[ "${2:-}" == "--purge" ]]; then
+      rm -rf "$CONFIG_DIR"
+      ok "配置目录已删除:$CONFIG_DIR"
+    elif [[ -d "$CONFIG_DIR" ]]; then
+      warn "配置已保留:$CONFIG_DIR(彻底删除请使用 uninstall --purge)"
+    fi
+
+    ok "卸载完成!已删除服务和二进制"
+    ;;
+
   # ============ 更新 ============
   update|--update|-u|up)
     echo
@@ -179,6 +209,6 @@ EOF
     ;;
 
   *)
-    err "未知参数:$MODE(用 install 或 update)"; exit 1
+    err "未知参数:$MODE(用 install、update 或 uninstall [--purge])"; exit 1
     ;;
 esac
