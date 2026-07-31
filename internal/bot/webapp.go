@@ -277,6 +277,20 @@ func (s *Service) webAppMe(w http.ResponseWriter, r *http.Request) {
 					"name": sv.Subscription.Name, "default": false,
 					"url": base + "/" + sv.Subscription.CombinedCode,
 				}}
+				if usage, usageErr := s.client.GetSubscriptionUsage(ctx, sv.Subscription.CombinedCode); usageErr == nil {
+					resp["traffic"] = map[string]any{
+						"package_name": "全局流量",
+						"limit_gb":     float64(usage.Total) / (1024 * 1024 * 1024),
+						"cycle_used":   usage.Used(),
+						"total_up":     usage.Upload,
+						"total_down":   usage.Download,
+					}
+					resp["global_traffic"] = map[string]any{
+						"used":      usage.Used(),
+						"total":     usage.Total,
+						"remaining": usage.Remaining(),
+					}
+				}
 			}
 			usedByName := map[string]int64{}
 			for _, n := range nodes {
@@ -295,6 +309,55 @@ func (s *Service) webAppMe(w http.ResponseWriter, r *http.Request) {
 			resp["nodes"] = nn
 			resp["node_status"] = ns
 		}
+	}
+
+	// Administrators commonly have no package nodes. In that case the status
+	// tab used to be empty even though one or more agents were connected. Fall
+	// back to the master server list while preserving real node status whenever
+	// package/subscription nodes exist.
+	if s.cfg.IsAdmin(tgID) {
+		current, _ := resp["node_status"].([]map[string]any)
+		if len(current) == 0 {
+			if servers, err := s.client.RemoteServers(ctx); err == nil {
+				fallback := make([]map[string]any, 0, len(servers))
+				for _, server := range servers {
+					status := "offline"
+					if remoteServerOnline(server.Status, server.WsConnected) {
+						status = "online"
+					}
+					fallback = append(fallback, map[string]any{
+						"name": server.Name, "protocol": "服务器", "status": status,
+					})
+				}
+				resp["node_status"] = fallback
+			}
+		}
+	}
+
+	// Add imported subscription usage to the administrator traffic ranking.
+	// The global card remains sourced from Subscription-Userinfo; these rows
+	// explain the external-subscription portion of that aggregate.
+	if s.cfg.IsAdmin(tgID) {
+		current, _ := resp["nodes"].([]map[string]any)
+		if servers, err := s.client.RemoteServers(ctx); err == nil {
+			for _, server := range servers {
+				current = append(current, map[string]any{
+					"name":  "服务器 · " + server.Name,
+					"used":  server.TrafficUsed,
+					"total": server.TrafficLimit,
+				})
+			}
+		}
+		if external, err := s.client.ExternalSubscriptions(ctx); err == nil {
+			for _, sub := range external {
+				current = append(current, map[string]any{
+					"name":  "外部订阅 · " + sub.Name,
+					"used":  sub.Used(),
+					"total": sub.Total,
+				})
+			}
+		}
+		resp["nodes"] = current
 	}
 
 	// 生效公告(按套餐/节点归属定向)→ Mini App 首页横幅

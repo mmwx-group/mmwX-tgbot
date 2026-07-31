@@ -2,8 +2,8 @@ package mmwxclient
 
 import (
 	"context"
-	"strconv"
 	"net/url"
+	"strconv"
 )
 
 // BindRequest 给 /api/admin/tgbot/bind 的入参。kind=new 时 Username 必填,kind=bind 时不要传 username。
@@ -18,11 +18,11 @@ type BindRequest struct {
 
 // BindResponse 主控 /bind 返回。kind=new 时 InitialPassword 非空,Package 非 nil。
 type BindResponse struct {
-	Success         bool                   `json:"success"`
-	Username        string                 `json:"username"`
-	Kind            string                 `json:"kind"`
-	InitialPassword string                 `json:"initial_password,omitempty"`
-	Package         map[string]any         `json:"package,omitempty"`
+	Success         bool           `json:"success"`
+	Username        string         `json:"username"`
+	Kind            string         `json:"kind"`
+	InitialPassword string         `json:"initial_password,omitempty"`
+	Package         map[string]any `json:"package,omitempty"`
 }
 
 func (c *Client) Bind(ctx context.Context, req BindRequest) (*BindResponse, error) {
@@ -95,14 +95,14 @@ func (c *Client) UserByTG(ctx context.Context, tgID int64) (*UserByTG, error) {
 
 // UserSummary 主控 /user-summary 返回(松散字段,bot 渲染时灵活取)。
 type UserSummary struct {
-	Success         bool                   `json:"success"`
-	Username        string                 `json:"username"`
-	Role            string                 `json:"role"`
-	IsActive        bool                   `json:"is_active"`
-	Email           string                 `json:"email"`
-	Package         map[string]any         `json:"package,omitempty"`
-	PackageEndDate  string                 `json:"package_end_date,omitempty"`
-	Traffic         TrafficCounters        `json:"traffic"`
+	Success        bool            `json:"success"`
+	Username       string          `json:"username"`
+	Role           string          `json:"role"`
+	IsActive       bool            `json:"is_active"`
+	Email          string          `json:"email"`
+	Package        map[string]any  `json:"package,omitempty"`
+	PackageEndDate string          `json:"package_end_date,omitempty"`
+	Traffic        TrafficCounters `json:"traffic"`
 }
 
 type TrafficCounters struct {
@@ -162,6 +162,52 @@ type NodeInfo struct {
 type UserNodesResp struct {
 	Success bool       `json:"success"`
 	Nodes   []NodeInfo `json:"nodes"`
+}
+
+// RemoteServerStatus is the subset of the master server-list response needed
+// by the Telegram status view. It deliberately excludes addresses and tokens.
+type RemoteServerStatus struct {
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+	WsConnected  bool   `json:"ws_connected"`
+	XrayRunning  bool   `json:"xray_running"`
+	TrafficUsed  int64  `json:"traffic_used"`
+	TrafficLimit int64  `json:"traffic_limit"`
+}
+
+// RemoteServers returns master-managed server health for the administrator
+// fallback view. This keeps the status tab useful when the administrator has
+// no package nodes (for example, when traffic comes from an external feed).
+func (c *Client) RemoteServers(ctx context.Context) ([]RemoteServerStatus, error) {
+	var out struct {
+		Servers []RemoteServerStatus `json:"servers"`
+	}
+	if err := c.get(ctx, "/api/admin/remote-servers", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Servers, nil
+}
+
+// ExternalSubscriptionUsage contains quota data synchronized by MMWX from an
+// imported subscription. URLs and credentials are intentionally not exposed.
+type ExternalSubscriptionUsage struct {
+	Name      string `json:"name"`
+	NodeCount int    `json:"node_count"`
+	Upload    int64  `json:"upload"`
+	Download  int64  `json:"download"`
+	Total     int64  `json:"total"`
+}
+
+func (u ExternalSubscriptionUsage) Used() int64 {
+	return u.Upload + u.Download
+}
+
+func (c *Client) ExternalSubscriptions(ctx context.Context) ([]ExternalSubscriptionUsage, error) {
+	var out []ExternalSubscriptionUsage
+	if err := c.get(ctx, "/api/user/external-subscriptions", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *Client) UserNodes(ctx context.Context, username string) (*UserNodesResp, error) {

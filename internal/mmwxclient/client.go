@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -104,6 +106,77 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 
 func (c *Client) post(ctx context.Context, path string, body, out any) error {
 	return c.doRequest(ctx, http.MethodPost, path, body, out)
+}
+
+// SubscriptionUsage is the aggregate usage advertised by an MMWX
+// subscription through the standard Subscription-Userinfo response header.
+type SubscriptionUsage struct {
+	Upload   int64
+	Download int64
+	Total    int64
+}
+
+func (u SubscriptionUsage) Used() int64 {
+	return u.Upload + u.Download
+}
+
+func (u SubscriptionUsage) Remaining() int64 {
+	remaining := u.Total - u.Used()
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+// GetSubscriptionUsage reads aggregate quota/usage without parsing the YAML
+// subscription body. This is used for the administrator global traffic view.
+func (c *Client) GetSubscriptionUsage(ctx context.Context, combinedCode string) (*SubscriptionUsage, error) {
+	combinedCode = strings.TrimSpace(combinedCode)
+	if combinedCode == "" {
+		return nil, fmt.Errorf("subscription code is empty")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.baseURL+"/x/"+url.PathEscape(combinedCode), nil)
+	if err != nil {
+		return nil, fmt.Errorf("new subscription request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiToken)
+	req.Header.Set("User-Agent", "mmwX-tgbot/0.1")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("subscription request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("subscription HTTP %d", resp.StatusCode)
+	}
+
+	raw := resp.Header.Get("Subscription-Userinfo")
+	if raw == "" {
+		return nil, fmt.Errorf("Subscription-Userinfo header is missing")
+	}
+	values := map[string]int64{}
+	for _, field := range strings.Split(raw, ";") {
+		parts := strings.SplitN(strings.TrimSpace(field), "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		n, parseErr := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+		if parseErr != nil || n < 0 {
+			continue
+		}
+		values[strings.ToLower(strings.TrimSpace(parts[0]))] = n
+	}
+	usage := &SubscriptionUsage{
+		Upload:   values["upload"],
+		Download: values["download"],
+		Total:    values["total"],
+	}
+	if usage.Total <= 0 {
+		return nil, fmt.Errorf("invalid subscription total quota")
+	}
+	return usage, nil
 }
 
 func truncate(s string, n int) string {

@@ -86,6 +86,41 @@ func (s *Service) handleTraffic(ctx context.Context, b *bot.Bot, update *models.
 		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: "你还没绑定 mmwx 账号。/start <code>。"})
 		return
 	}
+	if s.cfg.IsAdmin(tgID) {
+		if sv, viewErr := s.client.GetAdminSubview(ctx, info.Username); viewErr == nil && sv != nil && sv.Subscription != nil {
+			if usage, usageErr := s.client.GetSubscriptionUsage(ctx, sv.Subscription.CombinedCode); usageErr == nil {
+				pct := float64(usage.Used()) / float64(usage.Total) * 100
+				text := fmt.Sprintf(
+					"全局流量统计\n已用: %s / %s (%.1f%%)\n剩余: %s\n累计 ↑%s ↓%s",
+					humanBytes(usage.Used()), humanBytes(usage.Total), pct,
+					humanBytes(usage.Remaining()),
+					humanBytes(usage.Upload), humanBytes(usage.Download),
+				)
+				if servers, serverErr := s.client.RemoteServers(ctx); serverErr == nil && len(servers) > 0 {
+					text += "\n\n服务器明细："
+					for _, server := range servers {
+						text += fmt.Sprintf("\n• %s：%s", server.Name, humanBytes(server.TrafficUsed))
+						if server.TrafficLimit > 0 {
+							text += fmt.Sprintf(" / %s (%.1f%%)", humanBytes(server.TrafficLimit),
+								float64(server.TrafficUsed)/float64(server.TrafficLimit)*100)
+						}
+					}
+				}
+				if external, externalErr := s.client.ExternalSubscriptions(ctx); externalErr == nil && len(external) > 0 {
+					text += "\n\n外部订阅明细："
+					for _, sub := range external {
+						text += fmt.Sprintf("\n• %s：%s", sub.Name, humanBytes(sub.Used()))
+						if sub.Total > 0 {
+							text += fmt.Sprintf(" / %s (%.1f%%)", humanBytes(sub.Total),
+								float64(sub.Used())/float64(sub.Total)*100)
+						}
+					}
+				}
+				_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: text})
+				return
+			}
+		}
+	}
 	summary, err := s.client.UserSummary(ctx, info.Username)
 	if err != nil {
 		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: "查询失败:" + err.Error()})
@@ -98,7 +133,7 @@ func (s *Service) handleTraffic(ctx context.Context, b *bot.Bot, update *models.
 		if v, ok := summary.Package["name"].(string); ok {
 			pkgName = v
 		}
-		if v, ok := summary.Package["traffic_limit_gb"].(float64);  ok {
+		if v, ok := summary.Package["traffic_limit_gb"].(float64); ok {
 			limitGB = v
 		}
 	}
@@ -141,6 +176,28 @@ func (s *Service) handleNodes(ctx context.Context, b *bot.Bot, update *models.Up
 		return
 	}
 	if len(nodes.Nodes) == 0 {
+		if s.cfg.IsAdmin(tgID) {
+			servers, serverErr := s.client.RemoteServers(ctx)
+			if serverErr == nil && len(servers) > 0 {
+				var sb strings.Builder
+				onlineCount := 0
+				for _, server := range servers {
+					if remoteServerOnline(server.Status, server.WsConnected) {
+						onlineCount++
+					}
+				}
+				sb.WriteString(fmt.Sprintf("服务器 %d 台（在线 %d）：\n\n", len(servers), onlineCount))
+				for i, server := range servers {
+					mark := "❌"
+					if remoteServerOnline(server.Status, server.WsConnected) {
+						mark = "✅"
+					}
+					sb.WriteString(fmt.Sprintf("%d. %s %s  [服务器]\n", i+1, mark, server.Name))
+				}
+				_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: sb.String()})
+				return
+			}
+		}
 		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: chatID,
 			Text:   "套餐内暂无节点(或未绑套餐)。",
@@ -166,4 +223,16 @@ func (s *Service) handleNodes(ctx context.Context, b *bot.Bot, update *models.Up
 		sb.WriteString(fmt.Sprintf("%d. %s %s  [%s]\n", i+1, mark, n.Name, n.Protocol))
 	}
 	_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: sb.String()})
+}
+
+func remoteServerOnline(status string, wsConnected bool) bool {
+	if wsConnected {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "online", "connected", "active":
+		return true
+	default:
+		return false
+	}
 }
