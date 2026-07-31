@@ -322,11 +322,19 @@ function renderTraffic(d){
  var nodes=d.nodes||[];
  nodes=nodes.slice().sort(function(x,y){return (y.used||0)-(x.used||0);});
  var total=nodes.reduce(function(a,n){return a+(n.used||0);},0);
- var h='<div class="card"><div class="title">各节点已用流量 · 合计 '+hb(total)+'</div>';
- if(!nodes.length)h+='<div class="muted">本周期暂无各节点流量数据。</div>';
+ var global=d.global_traffic;
+ var h='<div class="card"><div class="title">流量明细 · 合计 '+hb(global?global.used:total)+'</div>';
+ if(!nodes.length&&global){
+  var gp=global.total>0?Math.min(100,(global.used||0)/global.total*100):0;
+  h+='<div class="row"><span>全局已用</span><span class="big">'+hb(global.used)+'</span></div>';
+  h+='<div class="bar"><i style="width:'+gp.toFixed(1)+'%"></i></div>';
+  h+='<div class="row" style="margin:6px 0 0"><span class="muted">总配额 '+hb(global.total)+'</span><span class="muted">剩余 '+hb(global.remaining)+'</span></div>';
+  h+='<div class="muted" style="margin-top:10px">当前无可归属到单个节点的流量明细。</div>';
+ }else if(!nodes.length)h+='<div class="muted">本周期暂无各节点流量数据。</div>';
  var max=0;nodes.forEach(function(n){if((n.used||0)>max)max=n.used;});if(max<=0)max=1;
- nodes.forEach(function(n){var pct=Math.max(2,(n.used||0)/max*100);
-  h+='<div style="margin:11px 0"><div class="row" style="margin:0 0 5px"><span>'+esc(n.name)+'</span><span class="muted">'+hb(n.used)+'</span></div>';
+ nodes.forEach(function(n){var nu=Number(n.used)||0,nt=Number(n.total)||0;
+  var pct=nt>0?Math.min(100,Math.max(0,nu/nt*100)):Math.max(2,nu/max*100);
+  h+='<div style="margin:11px 0"><div class="row" style="margin:0 0 5px"><span>'+esc(n.name)+'</span><span class="muted">'+hb(n.used)+(Number(n.total)>0?' / '+hb(n.total):'')+'</span></div>';
   h+='<div class="bar" style="margin:0"><i style="width:'+pct+'%"></i></div></div>';});
  h+='</div>';
  return h;
